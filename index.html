@@ -1,0 +1,2486 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#0e0e0e" />
+<title>ZETA · 플롯 에디터</title>
+
+<!-- ===== 외부 CDN (Tailwind / FontAwesome / Pretendard) ===== -->
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+<link rel="stylesheet" as="style" crossorigin
+      href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
+
+<style>
+/* =========================================================================
+   ZETA Plot Editor
+   -------------------------------------------------------------------------
+   · 모바일 전용(max-width 400px) 단일 파일 앱
+   · 색상은 전부 CSS 변수로 관리 → 다크/라이트/자동 테마 즉시 전환
+   ========================================================================= */
+
+/* ---------- 테마 토큰 ---------- */
+:root,
+html[data-theme="dark"] {
+  --bg:            #0e0e0e;   /* 앱 배경 */
+  --card:          #151515;   /* 카드 */
+  --input:         #1a1a1a;   /* 입력창 */
+  --elev:          #1d1d1d;   /* 떠 있는 표면(시트/모달) */
+  --border:        #262626;
+  --border-soft:   #1f1f1f;
+  --text:          #f4f4f5;
+  --text-sub:      #9a9aa0;
+  --text-dim:      #6b6b72;
+  --accent:        #7c5cff;
+  --accent-soft:   rgba(124, 92, 255, .16);
+  --accent-text:   #ffffff;
+  --danger:        #ff5a5f;
+  --danger-soft:   rgba(255, 90, 95, .14);
+  --ok:            #35d07f;
+  --bubble-user:   linear-gradient(135deg, #7c5cff, #6b46f0);
+  --bubble-nar:    #1e1e20;
+  --shadow:        0 12px 32px rgba(0,0,0,.55);
+  --skeleton:      rgba(255,255,255,.06);
+}
+
+html[data-theme="light"] {
+  --bg:            #ffffff;
+  --card:          #f5f5f7;
+  --input:         #efeff2;
+  --elev:          #ffffff;
+  --border:        #e3e3e8;
+  --border-soft:   #ececf0;
+  --text:          #121214;
+  --text-sub:      #6b6b73;
+  --text-dim:      #9a9aa2;
+  --accent:        #6d48f0;
+  --accent-soft:   rgba(109, 72, 240, .12);
+  --accent-text:   #ffffff;
+  --danger:        #e5484d;
+  --danger-soft:   rgba(229, 72, 77, .12);
+  --ok:            #2aa971;
+  --bubble-user:   linear-gradient(135deg, #7c5cff, #6b46f0);
+  --bubble-nar:    #ededf1;
+  --shadow:        0 12px 32px rgba(0,0,0,.14);
+  --skeleton:      rgba(0,0,0,.05);
+}
+
+/* ---------- 리셋 & 기본 ---------- */
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  margin: 0; padding: 0;
+  height: 100%;
+  font-family: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont,
+               'Apple SD Gothic Neo', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+html[data-theme="light"] body { background: #d9d9de; }
+
+button, input, textarea, select { font-family: inherit; color: inherit; }
+button { cursor: pointer; border: none; background: none; padding: 0; }
+input, textarea, select { outline: none; }
+textarea { resize: none; }
+
+/* 스크롤바 숨김(모바일 느낌) */
+.no-bar::-webkit-scrollbar { width: 0; height: 0; display: none; }
+.no-bar { scrollbar-width: none; -ms-overflow-style: none; }
+
+/* =========================================================================
+   앱 프레임 : 모바일 400px 고정, 화면 중앙 배치
+   ========================================================================= */
+#app {
+  position: relative;
+  width: 100%;
+  max-width: 400px;
+  height: 100vh;
+  height: 100dvh;
+  margin: auto;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  color: var(--text);
+  transition: background .28s ease, color .28s ease;
+}
+@media (min-width: 420px) and (min-height: 720px) {
+  /* 데스크톱에서는 실제 폰처럼 라운드 + 그림자 */
+  #app {
+    height: min(860px, 96vh);
+    border-radius: 30px;
+    box-shadow: 0 30px 80px rgba(0,0,0,.6), 0 0 0 1px var(--border);
+  }
+}
+
+/* =========================================================================
+   헤더
+   ========================================================================= */
+.hd {
+  flex: 0 0 auto;
+  padding: 14px 16px 10px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border-soft);
+  transition: background .28s ease;
+  z-index: 20;
+}
+.hd-row { display: flex; align-items: center; gap: 10px; }
+
+.hd-btn {
+  width: 34px; height: 34px;
+  display: grid; place-items: center;
+  border-radius: 10px;
+  color: var(--text-sub);
+  font-size: 15px;
+  transition: background .18s ease, color .18s ease, transform .12s ease;
+}
+.hd-btn:hover { background: var(--card); color: var(--text); }
+.hd-btn:active { transform: scale(.9); }
+
+.hd-title { font-size: 16.5px; font-weight: 700; letter-spacing: -.3px; line-height: 1.2; }
+.hd-sub   { font-size: 11.5px; color: var(--text-dim); margin-top: 2px; letter-spacing: -.2px; }
+
+/* 저장 상태 pill */
+.save-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; font-weight: 600;
+  padding: 5px 10px; border-radius: 999px;
+  background: var(--card); color: var(--text-dim);
+  border: 1px solid var(--border-soft);
+  transition: all .25s ease;
+  white-space: nowrap;
+}
+.save-pill.on { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+
+/* =========================================================================
+   탭 (가로 스크롤)
+   ========================================================================= */
+.tabs {
+  flex: 0 0 auto;
+  position: relative;
+  display: flex; gap: 6px;
+  padding: 10px 16px;
+  overflow-x: auto;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border-soft);
+  scroll-behavior: smooth;
+  z-index: 15;
+}
+.tab {
+  flex: 0 0 auto;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-size: 13px; font-weight: 600; letter-spacing: -.2px;
+  color: var(--text-dim);
+  background: var(--card);
+  border: 1px solid transparent;
+  transition: color .2s ease, background .2s ease, transform .14s ease, border-color .2s ease;
+}
+.tab i { font-size: 11px; opacity: .9; }
+.tab:hover { color: var(--text-sub); }
+.tab:active { transform: scale(.94); }
+.tab.active {
+  color: var(--accent-text);
+  background: var(--accent);
+  box-shadow: 0 6px 18px var(--accent-soft);
+}
+.tab .badge {
+  min-width: 17px; height: 17px; padding: 0 5px;
+  display: inline-grid; place-items: center;
+  border-radius: 999px;
+  font-size: 10px; font-weight: 700;
+  background: rgba(255,255,255,.14); color: inherit;
+}
+.tab:not(.active) .badge { background: var(--border); color: var(--text-dim); }
+
+/* =========================================================================
+   본문
+   ========================================================================= */
+.view {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding: 16px 16px 28px;
+}
+.view.chat { padding: 14px 14px 10px; }
+
+/* 진입 애니메이션 */
+@keyframes viewIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.view > .sec, .view > .chat-wrap { animation: viewIn .32s cubic-bezier(.22,.9,.3,1) both; }
+.view > .sec:nth-child(2) { animation-delay: .04s; }
+.view > .sec:nth-child(3) { animation-delay: .08s; }
+.view > .sec:nth-child(4) { animation-delay: .12s; }
+.view > .sec:nth-child(5) { animation-delay: .16s; }
+.view > .sec:nth-child(6) { animation-delay: .2s; }
+
+/* ---------- 공통 블록 ---------- */
+.sec { margin-bottom: 18px; }
+.sec-t {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 9px;
+}
+.sec-t h3 { margin: 0; font-size: 13px; font-weight: 700; letter-spacing: -.2px; color: var(--text); }
+.sec-t .cnt { font-size: 11px; font-weight: 600; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.sec-t .cnt.warn { color: #f5a524; }
+.sec-t .cnt.over { color: var(--danger); }
+.hint { font-size: 11.5px; color: var(--text-dim); line-height: 1.55; margin-top: 7px; }
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border-soft);
+  border-radius: 14px;
+  padding: 14px;
+  transition: background .28s ease, border-color .28s ease;
+}
+
+/* ---------- 입력 요소 ---------- */
+.field {
+  width: 100%;
+  background: var(--input);
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  padding: 12px 13px;
+  font-size: 14px; line-height: 1.6; letter-spacing: -.2px;
+  color: var(--text);
+  transition: border-color .2s ease, background .2s ease, box-shadow .2s ease;
+}
+.field::placeholder { color: var(--text-dim); }
+.field:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.field.err { border-color: var(--danger); box-shadow: 0 0 0 3px var(--danger-soft); }
+
+select.field {
+  appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'><path d='M2 4.5L6 8.5L10 4.5' stroke='%239a9aa0' stroke-width='1.6' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 13px center;
+  padding-right: 34px;
+  cursor: pointer;
+}
+
+/* ---------- 버튼 ---------- */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  height: 46px; padding: 0 18px;
+  border-radius: 13px;
+  font-size: 14px; font-weight: 700; letter-spacing: -.2px;
+  transition: transform .13s cubic-bezier(.2,.8,.3,1), opacity .2s ease,
+              background .2s ease, box-shadow .2s ease, color .2s ease;
+}
+.btn:active { transform: scale(.96); }
+.btn-primary { background: var(--accent); color: var(--accent-text); box-shadow: 0 8px 20px var(--accent-soft); }
+.btn-primary:hover { filter: brightness(1.08); box-shadow: 0 10px 26px var(--accent-soft); }
+.btn-ghost { background: var(--card); color: var(--text); border: 1px solid var(--border); }
+.btn-ghost:hover { background: var(--input); border-color: var(--text-dim); }
+.btn-danger { background: var(--danger-soft); color: var(--danger); border: 1px solid transparent; }
+.btn-danger:hover { background: var(--danger); color: #fff; }
+.btn[disabled], .btn.is-disabled {
+  opacity: .38; pointer-events: none; box-shadow: none;
+  background: var(--card); color: var(--text-dim);
+}
+.btn-sm { height: 36px; padding: 0 13px; font-size: 12.5px; border-radius: 10px; }
+.btn-block { width: 100%; }
+
+/* 아이콘 전용 버튼 */
+.ibtn {
+  width: 32px; height: 32px;
+  display: grid; place-items: center;
+  border-radius: 9px;
+  color: var(--text-dim); font-size: 12.5px;
+  transition: background .18s ease, color .18s ease, transform .12s ease;
+}
+.ibtn:hover { background: var(--input); color: var(--text); }
+.ibtn:active { transform: scale(.88); }
+.ibtn.danger:hover { background: var(--danger-soft); color: var(--danger); }
+
+/* =========================================================================
+   프롬프트 탭 — 이미지 업로더
+   ========================================================================= */
+.uploader {
+  position: relative;
+  width: 100%; height: 172px;
+  border-radius: 16px;
+  border: 1.6px dashed var(--border);
+  background: var(--card);
+  display: grid; place-items: center;
+  overflow: hidden;
+  transition: border-color .22s ease, background .22s ease, transform .16s ease;
+}
+.uploader:hover { border-color: var(--accent); background: var(--input); }
+.uploader:active { transform: scale(.99); }
+.uploader.drag { border-color: var(--accent); background: var(--accent-soft); }
+.uploader.has-img { border-style: solid; border-color: var(--border-soft); }
+
+.up-empty { text-align: center; pointer-events: none; padding: 0 20px; }
+.up-empty .ico {
+  width: 46px; height: 46px; margin: 0 auto 10px;
+  border-radius: 14px;
+  display: grid; place-items: center;
+  background: var(--input); color: var(--accent); font-size: 17px;
+}
+.up-empty .t1 { font-size: 13px; font-weight: 700; }
+.up-empty .t2 { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
+
+.up-img { width: 100%; height: 100%; object-fit: cover; display: block; animation: fadeIn .35s ease both; }
+@keyframes fadeIn { from { opacity: 0; transform: scale(1.03); } to { opacity: 1; transform: none; } }
+
+.up-tools {
+  position: absolute; right: 9px; bottom: 9px;
+  display: flex; gap: 7px;
+}
+.up-tool {
+  height: 32px; padding: 0 11px;
+  display: inline-flex; align-items: center; gap: 6px;
+  border-radius: 9px;
+  font-size: 11.5px; font-weight: 700;
+  background: rgba(0,0,0,.62); color: #fff;
+  backdrop-filter: blur(8px);
+  transition: background .18s ease, transform .12s ease;
+}
+.up-tool:hover { background: rgba(0,0,0,.82); }
+.up-tool:active { transform: scale(.92); }
+.up-tool.del:hover { background: var(--danger); }
+
+/* =========================================================================
+   인트로 탭 — 채팅
+   ========================================================================= */
+.chat-wrap { display: flex; flex-direction: column; gap: 12px; min-height: 100%; }
+
+.chat-empty {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 9px;
+  padding: 46px 24px; text-align: center; color: var(--text-dim);
+}
+.chat-empty .ico {
+  width: 58px; height: 58px; border-radius: 20px;
+  display: grid; place-items: center;
+  background: var(--card); color: var(--accent); font-size: 21px;
+  margin-bottom: 4px;
+}
+.chat-empty .t1 { font-size: 14px; font-weight: 700; color: var(--text-sub); }
+.chat-empty .t2 { font-size: 11.5px; line-height: 1.6; }
+
+/* 날짜 구분선 */
+.day-sep { display: flex; align-items: center; gap: 10px; margin: 4px 2px 2px; }
+.day-sep span { font-size: 10.5px; font-weight: 600; color: var(--text-dim); }
+.day-sep::before, .day-sep::after { content: ""; flex: 1; height: 1px; background: var(--border-soft); }
+
+/* 말풍선 행 */
+.row { display: flex; gap: 8px; align-items: flex-end; animation: bubbleIn .34s cubic-bezier(.22,.9,.3,1) both; }
+.row.me { flex-direction: row-reverse; }
+@keyframes bubbleIn {
+  from { opacity: 0; transform: translateY(10px) scale(.97); }
+  to   { opacity: 1; transform: none; }
+}
+
+.ava {
+  flex: 0 0 auto;
+  width: 29px; height: 29px; border-radius: 10px;
+  display: grid; place-items: center;
+  font-size: 11px; font-weight: 800;
+  background: var(--card); color: var(--text-sub);
+  border: 1px solid var(--border-soft);
+  overflow: hidden;
+}
+.ava img { width: 100%; height: 100%; object-fit: cover; }
+.ava.me { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+
+.bub-col { display: flex; flex-direction: column; max-width: 74%; min-width: 0; }
+.row.me .bub-col { align-items: flex-end; }
+.bub-name { font-size: 10.5px; font-weight: 600; color: var(--text-dim); margin: 0 4px 4px; }
+
+.bub {
+  position: relative;
+  padding: 10px 13px;
+  border-radius: 16px;
+  font-size: 13.5px; line-height: 1.62; letter-spacing: -.2px;
+  white-space: pre-wrap; word-break: break-word;
+  background: var(--bubble-nar); color: var(--text);
+  border-bottom-left-radius: 6px;
+  transition: transform .16s ease, box-shadow .2s ease;
+  user-select: none;
+}
+.row.me .bub {
+  background: var(--bubble-user); color: #fff;
+  border-bottom-left-radius: 16px; border-bottom-right-radius: 6px;
+}
+.bub.narr { font-style: italic; color: var(--text-sub); background: transparent; border: 1px dashed var(--border); }
+.bub.press { transform: scale(.965); box-shadow: 0 0 0 3px var(--accent-soft); }
+.bub .edited { font-size: 10px; opacity: .55; margin-left: 6px; font-style: normal; }
+
+.bub-meta { display: flex; align-items: center; gap: 5px; margin: 5px 4px 0; }
+.bub-time { font-size: 10px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+
+/* 화자 토글 */
+.spk {
+  display: flex; gap: 4px; padding: 3px;
+  background: var(--input); border-radius: 11px;
+  border: 1px solid var(--border-soft);
+}
+.spk button {
+  flex: 1;
+  display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+  height: 30px; padding: 0 10px;
+  border-radius: 8px;
+  font-size: 12px; font-weight: 700; letter-spacing: -.2px;
+  color: var(--text-dim);
+  transition: background .2s ease, color .2s ease, transform .12s ease;
+  white-space: nowrap;
+}
+.spk button:active { transform: scale(.95); }
+.spk button.on { background: var(--accent); color: var(--accent-text); box-shadow: 0 4px 12px var(--accent-soft); }
+
+/* 하단 고정 입력창 */
+.composer {
+  flex: 0 0 auto;
+  padding: 9px 12px calc(11px + env(safe-area-inset-bottom));
+  background: var(--bg);
+  border-top: 1px solid var(--border-soft);
+  z-index: 18;
+}
+.comp-top { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.comp-row { display: flex; align-items: flex-end; gap: 8px; }
+
+.comp-input {
+  flex: 1 1 auto;
+  max-height: 132px;
+  min-height: 44px;
+  overflow-y: auto;
+  padding: 12px 14px;
+  border-radius: 15px;
+  background: var(--input);
+  border: 1px solid var(--border-soft);
+  font-size: 14px; line-height: 1.55; letter-spacing: -.2px;
+  transition: border-color .2s ease, box-shadow .2s ease;
+}
+.comp-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+
+.send {
+  flex: 0 0 auto;
+  width: 44px; height: 44px;
+  border-radius: 14px;
+  display: grid; place-items: center;
+  font-size: 14.5px;
+  background: var(--input); color: var(--text-dim);
+  transition: background .2s ease, color .2s ease, transform .14s ease, box-shadow .2s ease;
+}
+.send.on { background: var(--accent); color: #fff; box-shadow: 0 8px 20px var(--accent-soft); }
+.send.on:hover { filter: brightness(1.08); }
+.send:active { transform: scale(.9); }
+
+/* 편집 중 배너 */
+.edit-bar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 11px; margin-bottom: 8px;
+  border-radius: 11px;
+  background: var(--accent-soft);
+  font-size: 11.5px; font-weight: 600; color: var(--accent);
+  animation: viewIn .22s ease both;
+}
+.edit-bar .txt { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* =========================================================================
+   로어북
+   ========================================================================= */
+.search {
+  position: relative;
+  margin-bottom: 12px;
+}
+.search i {
+  position: absolute; left: 13px; top: 50%; transform: translateY(-50%);
+  font-size: 12.5px; color: var(--text-dim); pointer-events: none;
+}
+.search input { padding-left: 36px; padding-right: 36px; height: 44px; }
+.search .clr {
+  position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+  width: 26px; height: 26px; border-radius: 8px;
+  display: none; place-items: center;
+  color: var(--text-dim); font-size: 11px;
+}
+.search .clr.show { display: grid; }
+.search .clr:hover { background: var(--input); color: var(--text); }
+
+.lore {
+  background: var(--card);
+  border: 1px solid var(--border-soft);
+  border-radius: 14px;
+  margin-bottom: 10px;
+  overflow: hidden;
+  transition: border-color .2s ease, box-shadow .2s ease, transform .16s ease;
+  animation: viewIn .3s ease both;
+}
+.lore:hover { border-color: var(--border); }
+.lore.open { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.lore.off { opacity: .5; }
+
+.lore-hd {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 13px;
+  transition: background .18s ease;
+}
+.lore-hd:hover { background: var(--input); }
+.lore-hd .chev { color: var(--text-dim); font-size: 11px; transition: transform .26s cubic-bezier(.2,.8,.3,1); }
+.lore.open .lore-hd .chev { transform: rotate(90deg); color: var(--accent); }
+.lore-hd .ti { flex: 1; min-width: 0; }
+.lore-hd .ti .nm { font-size: 13.5px; font-weight: 700; letter-spacing: -.2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lore-hd .ti .kw { font-size: 11px; color: var(--text-dim); margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.lore-body {
+  display: grid; grid-template-rows: 0fr;
+  transition: grid-template-rows .3s cubic-bezier(.2,.8,.3,1);
+}
+.lore.open .lore-body { grid-template-rows: 1fr; }
+.lore-body > .inner { overflow: hidden; }
+.lore-body .pad { padding: 2px 13px 13px; display: flex; flex-direction: column; gap: 10px; }
+
+.lbl { font-size: 11px; font-weight: 700; color: var(--text-sub); margin-bottom: 6px; display: block; }
+.lore-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-top: 2px; }
+
+/* 키워드 칩 */
+.chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 9px; border-radius: 999px;
+  font-size: 11px; font-weight: 600;
+  background: var(--accent-soft); color: var(--accent);
+  animation: viewIn .2s ease both;
+}
+
+/* 빈 상태 */
+.empty {
+  padding: 44px 22px; text-align: center;
+  border: 1.4px dashed var(--border); border-radius: 16px;
+  color: var(--text-dim);
+}
+.empty .ico {
+  width: 52px; height: 52px; margin: 0 auto 11px;
+  border-radius: 17px; display: grid; place-items: center;
+  background: var(--card); color: var(--accent); font-size: 18px;
+}
+.empty .t1 { font-size: 13.5px; font-weight: 700; color: var(--text-sub); }
+.empty .t2 { font-size: 11.5px; margin-top: 5px; line-height: 1.6; }
+
+/* =========================================================================
+   스타일 탭 — 체크박스 / 토글 / 슬라이더
+   ========================================================================= */
+.opt-list { display: flex; flex-direction: column; }
+.opt {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border-soft);
+}
+.opt:last-child { border-bottom: none; }
+.opt .info { flex: 1; min-width: 0; }
+.opt .info .t { font-size: 13.5px; font-weight: 600; letter-spacing: -.2px; }
+.opt .info .d { font-size: 11px; color: var(--text-dim); margin-top: 3px; line-height: 1.5; }
+
+/* 체크박스(그리드형) */
+.check-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.check {
+  display: flex; align-items: center; gap: 9px;
+  padding: 11px 12px;
+  border-radius: 12px;
+  background: var(--input);
+  border: 1.4px solid transparent;
+  font-size: 12.5px; font-weight: 600;
+  transition: all .2s ease;
+}
+.check:hover { border-color: var(--border); }
+.check:active { transform: scale(.97); }
+.check .box {
+  width: 19px; height: 19px; flex: 0 0 auto;
+  border-radius: 6px;
+  border: 1.6px solid var(--border);
+  display: grid; place-items: center;
+  color: transparent; font-size: 10px;
+  transition: all .2s ease;
+}
+.check.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.check.on .box { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+/* 스위치 */
+.sw {
+  flex: 0 0 auto;
+  width: 46px; height: 27px;
+  border-radius: 999px;
+  background: var(--border);
+  position: relative;
+  transition: background .26s cubic-bezier(.2,.8,.3,1);
+}
+.sw::after {
+  content: "";
+  position: absolute; top: 3px; left: 3px;
+  width: 21px; height: 21px; border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 6px rgba(0,0,0,.32);
+  transition: transform .26s cubic-bezier(.2,.8,.3,1);
+}
+.sw.on { background: var(--accent); }
+.sw.on::after { transform: translateX(19px); }
+.sw:active::after { width: 24px; }
+
+/* 슬라이더 */
+.slider-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 9px; }
+.slider-head .v {
+  font-size: 11.5px; font-weight: 700; color: var(--accent);
+  background: var(--accent-soft); padding: 3px 9px; border-radius: 999px;
+  font-variant-numeric: tabular-nums;
+}
+input[type="range"] {
+  -webkit-appearance: none; appearance: none;
+  width: 100%; height: 5px; border-radius: 999px;
+  background: var(--border);
+  outline: none;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 19px; height: 19px; border-radius: 50%;
+  background: var(--accent);
+  border: 3px solid var(--bg);
+  box-shadow: 0 2px 8px rgba(0,0,0,.35);
+  cursor: pointer;
+  transition: transform .16s ease;
+}
+input[type="range"]::-webkit-slider-thumb:active { transform: scale(1.22); }
+input[type="range"]::-moz-range-thumb {
+  width: 19px; height: 19px; border-radius: 50%;
+  background: var(--accent); border: 3px solid var(--bg);
+  cursor: pointer;
+}
+.range-ticks { display: flex; justify-content: space-between; margin-top: 7px; }
+.range-ticks span { font-size: 10px; color: var(--text-dim); }
+
+/* 세그먼트(테마 선택) */
+.seg {
+  display: flex; gap: 4px; padding: 4px;
+  background: var(--input); border-radius: 13px;
+}
+.seg button {
+  flex: 1; height: 40px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  border-radius: 10px;
+  font-size: 12.5px; font-weight: 700;
+  color: var(--text-dim);
+  transition: background .2s ease, color .2s ease, transform .12s ease;
+}
+.seg button:active { transform: scale(.95); }
+.seg button.on { background: var(--card); color: var(--text); box-shadow: 0 3px 10px rgba(0,0,0,.2); }
+
+/* 미리보기 요약 */
+.preview {
+  background: var(--input);
+  border-radius: 12px; padding: 12px;
+  font-size: 12px; line-height: 1.75; color: var(--text-sub);
+  border: 1px solid var(--border-soft);
+  min-height: 62px;
+  transition: background .2s ease;
+}
+.preview b { color: var(--accent); font-weight: 700; }
+
+/* 저장 용량 바 */
+.meter { height: 6px; border-radius: 999px; background: var(--border); overflow: hidden; margin-top: 8px; }
+.meter > i { display: block; height: 100%; background: var(--accent); border-radius: 999px; transition: width .4s ease; }
+
+/* =========================================================================
+   오버레이 : 토스트 / 액션시트 / 모달
+   ========================================================================= */
+#toast-layer {
+  position: absolute; left: 0; right: 0; bottom: 92px;
+  display: flex; flex-direction: column; align-items: center; gap: 7px;
+  pointer-events: none; z-index: 90; padding: 0 20px;
+}
+.toast {
+  display: inline-flex; align-items: center; gap: 8px;
+  max-width: 100%;
+  padding: 10px 15px; border-radius: 12px;
+  background: var(--elev); color: var(--text);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  font-size: 12.5px; font-weight: 600; letter-spacing: -.2px;
+  animation: toastIn .3s cubic-bezier(.2,.9,.3,1) both;
+}
+.toast.out { animation: toastOut .24s ease forwards; }
+.toast i { font-size: 12px; }
+.toast.ok i { color: var(--ok); }
+.toast.err i { color: var(--danger); }
+.toast.info i { color: var(--accent); }
+@keyframes toastIn  { from { opacity: 0; transform: translateY(14px) scale(.94); } to { opacity: 1; transform: none; } }
+@keyframes toastOut { to { opacity: 0; transform: translateY(-8px) scale(.96); } }
+
+/* 공통 백드롭 */
+.backdrop {
+  position: absolute; inset: 0;
+  background: rgba(0,0,0,.58);
+  backdrop-filter: blur(3px);
+  opacity: 0; pointer-events: none;
+  transition: opacity .26s ease;
+  z-index: 60;
+}
+.backdrop.show { opacity: 1; pointer-events: auto; }
+
+/* 액션시트 */
+.sheet {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  padding: 10px 10px calc(14px + env(safe-area-inset-bottom));
+  transform: translateY(100%);
+  transition: transform .32s cubic-bezier(.22,.9,.3,1);
+  z-index: 70;
+}
+.sheet.show { transform: none; }
+.sheet-box {
+  background: var(--elev);
+  border: 1px solid var(--border);
+  border-radius: 17px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+.sheet-title {
+  padding: 13px 16px;
+  font-size: 11.5px; font-weight: 600; color: var(--text-dim);
+  text-align: center;
+  border-bottom: 1px solid var(--border-soft);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.sheet-item {
+  width: 100%;
+  display: flex; align-items: center; gap: 12px;
+  padding: 15px 17px;
+  font-size: 14.5px; font-weight: 600; letter-spacing: -.2px;
+  border-bottom: 1px solid var(--border-soft);
+  transition: background .16s ease;
+}
+.sheet-item:last-child { border-bottom: none; }
+.sheet-item:hover { background: var(--input); }
+.sheet-item:active { background: var(--card); }
+.sheet-item i { width: 18px; text-align: center; font-size: 14px; color: var(--text-sub); }
+.sheet-item.danger, .sheet-item.danger i { color: var(--danger); }
+.sheet-cancel {
+  margin-top: 8px; width: 100%;
+  padding: 15px; border-radius: 17px;
+  background: var(--elev); border: 1px solid var(--border);
+  font-size: 15px; font-weight: 700; color: var(--text);
+  box-shadow: var(--shadow);
+  transition: background .16s ease;
+}
+.sheet-cancel:hover { background: var(--input); }
+
+/* 모달 */
+.modal {
+  position: absolute; inset: 0;
+  display: grid; place-items: center;
+  padding: 24px;
+  z-index: 80;
+  pointer-events: none;
+}
+.modal.show { pointer-events: auto; }
+.modal-box {
+  width: 100%;
+  background: var(--elev);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  transform: scale(.9); opacity: 0;
+  transition: transform .28s cubic-bezier(.22,.9,.3,1), opacity .22s ease;
+}
+.modal.show .modal-box { transform: none; opacity: 1; }
+.modal-hd { padding: 17px 17px 5px; }
+.modal-hd h4 { margin: 0; font-size: 15.5px; font-weight: 700; letter-spacing: -.3px; }
+.modal-hd p  { margin: 7px 0 0; font-size: 12.5px; line-height: 1.6; color: var(--text-sub); }
+.modal-bd { padding: 13px 17px 3px; }
+.modal-ft { display: flex; gap: 8px; padding: 14px 17px 17px; }
+.modal-ft .btn { flex: 1; height: 44px; }
+
+/* 접근성 */
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+</style>
+</head>
+
+<body>
+<!-- ========================= 앱 프레임 ========================= -->
+<div id="app">
+
+  <!-- ---------- 헤더 ---------- -->
+  <header class="hd">
+    <div class="hd-row">
+      <button class="hd-btn" id="btn-back" title="뒤로"><i class="fa-solid fa-chevron-left"></i></button>
+      <div style="flex:1;min-width:0">
+        <div class="hd-title" id="hd-title">플롯 만들기</div>
+        <div class="hd-sub"   id="hd-sub">캐릭터 프롬프트</div>
+      </div>
+      <div class="save-pill" id="save-pill"><i class="fa-solid fa-cloud-arrow-up"></i><span>저장됨</span></div>
+      <button class="hd-btn" id="btn-menu" title="메뉴"><i class="fa-solid fa-ellipsis-vertical"></i></button>
+    </div>
+  </header>
+
+  <!-- ---------- 탭 (가로 스크롤) ---------- -->
+  <nav class="tabs no-bar" id="tabs"></nav>
+
+  <!-- ---------- 본문 ---------- -->
+  <main class="view no-bar" id="view"></main>
+
+  <!-- ---------- 하단 고정 입력창(인트로 탭 전용) ---------- -->
+  <div class="composer" id="composer" style="display:none">
+    <div id="edit-bar-slot"></div>
+    <div class="comp-top">
+      <div class="spk" id="spk" style="flex:1">
+        <button data-spk="narrator"><i class="fa-solid fa-feather"></i>내레이터</button>
+        <button data-spk="user"><i class="fa-solid fa-user"></i>유저</button>
+      </div>
+    </div>
+    <div class="comp-row">
+      <textarea id="comp-input" class="comp-input no-bar" rows="1" placeholder="첫 상황을 입력해 주세요"></textarea>
+      <button class="send" id="btn-send" title="전송"><i class="fa-solid fa-arrow-up"></i></button>
+    </div>
+  </div>
+
+  <!-- ---------- 오버레이 레이어 ---------- -->
+  <div id="toast-layer"></div>
+  <div class="backdrop" id="backdrop"></div>
+  <div class="sheet" id="sheet"></div>
+  <div class="modal" id="modal"><div class="modal-box" id="modal-box"></div></div>
+
+  <!-- 파일 입력(숨김) -->
+  <input type="file" id="file-image" accept="image/*" class="sr" />
+  <input type="file" id="file-json"  accept="application/json,.json" class="sr" />
+</div>
+
+<script>
+"use strict";
+/* =========================================================================
+   ZETA Plot Editor — Vanilla JS (ES6)
+   -------------------------------------------------------------------------
+   구조
+     1) CONFIG / TAB 정의
+     2) Store      : 상태 + localStorage 저장·복원
+     3) Utils      : DOM/포맷/토스트/시트/모달 등 공용 헬퍼
+     4) Theme      : 다크·라이트·자동
+     5) renderTabs : 탭 네비게이션
+     6) render*    : 탭별 화면 (Prompt / Intro / Lorebook / Style / About / Settings)
+     7) 메시지·로어북 CRUD
+     8) Composer   : 하단 입력창 (인트로 전용)
+     9) Boot       : 초기화
+   ========================================================================= */
+
+/* =========================================================================
+   1) CONFIG
+   ========================================================================= */
+const CONFIG = {
+  STORAGE_KEY : 'zeta.plot.editor.v1',
+  NAME_MAX    : 10,
+  DESC_MAX    : 2400,
+  ABOUT_MAX   : 500,
+  LORE_KEY_MAX: 120,
+  LORE_TXT_MAX: 1000,
+  IMAGE_MAX_PX: 640,     // 업로드 이미지 리사이즈 상한(px)
+  IMAGE_QUALITY: .82,    // JPEG 품질
+  LONGPRESS_MS: 480,     // 길게 누르기 판정 시간
+  SAVE_DEBOUNCE: 260     // 자동 저장 디바운스(ms)
+};
+
+/** 탭 정의 — 순서/아이콘/서브타이틀을 한 곳에서 관리 */
+const TABS = [
+  { id:'prompt',   label:'프롬프트', icon:'fa-solid fa-wand-magic-sparkles', sub:'캐릭터 프롬프트' },
+  { id:'intro',    label:'인트로',   icon:'fa-solid fa-comments',            sub:'첫 대화 상황' },
+  { id:'lorebook', label:'로어북',   icon:'fa-solid fa-book-open',           sub:'세계관 설정' },
+  { id:'style',    label:'스타일',   icon:'fa-solid fa-sliders',             sub:'대화 스타일' },
+  { id:'about',    label:'소개',     icon:'fa-solid fa-circle-info',         sub:'플롯 소개글' },
+  { id:'settings', label:'설정',     icon:'fa-solid fa-gear',                sub:'앱 설정 · 백업' }
+];
+
+/** 스타일 탭에서 쓰는 말투 옵션 */
+const TONE_OPTIONS = [
+  { id:'kind',    label:'다정한',   icon:'fa-solid fa-heart' },
+  { id:'tsun',    label:'츤데레',   icon:'fa-solid fa-face-rolling-eyes' },
+  { id:'funny',   label:'유머러스', icon:'fa-solid fa-face-laugh' },
+  { id:'chic',    label:'시크한',   icon:'fa-solid fa-snowflake' },
+  { id:'polite',  label:'정중한',   icon:'fa-solid fa-hands' },
+  { id:'playful', label:'장난스러운', icon:'fa-solid fa-ghost' }
+];
+
+/* =========================================================================
+   2) Store — 애플리케이션 상태 + 영속화
+   ========================================================================= */
+const Store = (() => {
+
+  /** 기본 상태 (스키마 기준) */
+  function defaults() {
+    return {
+      version : 1,
+      ui : {
+        tab       : 'prompt',
+        scroll    : {},          // { tabId: scrollTop }
+        speaker   : 'narrator',  // 인트로 화자
+        draft     : '',          // 인트로 입력 중 텍스트
+        loreQuery : ''           // 로어북 검색어
+      },
+      prompt : { image:'', name:'', desc:'' },
+      intro  : { messages:[] },  // { id, speaker, text, ts, edited }
+      lore   : { entries:[] },   // { id, title, keywords, content, open, enabled }
+      style  : {
+        tones     : ['kind'],
+        emoji     : true,
+        narration : true,
+        banmal    : false,
+        safeMode  : true,
+        creativity: 65,
+        memory    : 50,
+        length    : 'normal',    // short | normal | long
+        person    : 'third',     // first | third
+        language  : 'ko'
+      },
+      about  : { text:'' },
+      settings : { theme:'dark', autosave:true, haptic:true }
+    };
+  }
+
+  /** 현재 상태 (모듈 내부에서만 직접 조작) */
+  let state = defaults();
+
+  /** 저장된 값과 기본값을 깊게 병합 → 스키마가 늘어나도 안전 */
+  function merge(base, patch) {
+    if (!patch || typeof patch !== 'object') return base;
+    const out = Array.isArray(base) ? base.slice() : Object.assign({}, base);
+    Object.keys(patch).forEach(k => {
+      const bv = base ? base[k] : undefined;
+      const pv = patch[k];
+      if (pv === null || pv === undefined) return;
+      if (Array.isArray(pv)) out[k] = pv;
+      else if (typeof pv === 'object' && typeof bv === 'object' && bv && !Array.isArray(bv)) out[k] = merge(bv, pv);
+      else out[k] = pv;
+    });
+    return out;
+  }
+
+  /** localStorage → state */
+  function load() {
+    try {
+      const raw = localStorage.getItem(CONFIG.STORAGE_KEY);
+      if (raw) state = merge(defaults(), JSON.parse(raw));
+    } catch (e) {
+      console.warn('[ZETA] 저장 데이터를 읽지 못했습니다.', e);
+      state = defaults();
+    }
+    return state;
+  }
+
+  /** state → localStorage (디바운스) */
+  let timer = null, onSaved = null;
+  function save(immediate) {
+    if (state.settings.autosave === false && !immediate) return;
+    clearTimeout(timer);
+    const write = () => {
+      try {
+        localStorage.setItem(CONFIG.STORAGE_KEY, JSON.stringify(state));
+        if (onSaved) onSaved(true);
+      } catch (e) {
+        console.warn('[ZETA] 저장 실패', e);
+        if (onSaved) onSaved(false, e);
+      }
+    };
+    if (immediate) write();
+    else timer = setTimeout(write, CONFIG.SAVE_DEBOUNCE);
+  }
+
+  /** 전체 초기화 */
+  function reset() {
+    state = defaults();
+    try { localStorage.removeItem(CONFIG.STORAGE_KEY); } catch (e) {}
+    return state;
+  }
+
+  /** 외부에서 통째로 교체(JSON 불러오기) */
+  function replace(obj) {
+    state = merge(defaults(), obj);
+    save(true);
+    return state;
+  }
+
+  /** 사용 중인 저장 용량(byte) */
+  function usage() {
+    try { return new Blob([localStorage.getItem(CONFIG.STORAGE_KEY) || '']).size; }
+    catch (e) { return 0; }
+  }
+
+  return {
+    get state()   { return state; },
+    set onSaved(fn){ onSaved = fn; },
+    defaults, load, save, reset, replace, usage
+  };
+})();
+
+/** 상태 단축 접근자 */
+const S = () => Store.state;
+
+/* =========================================================================
+   3) Utils — 공용 헬퍼
+   ========================================================================= */
+const $  = (sel, ctx) => (ctx || document).querySelector(sel);
+const $$ = (sel, ctx) => Array.prototype.slice.call((ctx || document).querySelectorAll(sel));
+
+/** 고유 ID */
+function uid(prefix) {
+  return (prefix || 'id') + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+
+/** HTML 이스케이프 (사용자 입력을 innerHTML로 넣을 때 필수) */
+function esc(str) {
+  return String(str == null ? '' : str)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+/** "오후 3:24" 형태 시간 */
+function formatTime(ts) {
+  const d = new Date(ts);
+  const h = d.getHours();
+  const m = String(d.getMinutes()).padStart(2, '0');
+  const ampm = h < 12 ? '오전' : '오후';
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return ampm + ' ' + h12 + ':' + m;
+}
+
+/** "2026년 8월 5일" 형태 날짜 */
+function formatDate(ts) {
+  const d = new Date(ts);
+  return d.getFullYear() + '년 ' + (d.getMonth() + 1) + '월 ' + d.getDate() + '일';
+}
+
+/** 날짜 키(그룹핑용) */
+function dayKey(ts) {
+  const d = new Date(ts);
+  return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate();
+}
+
+/** 바이트 → 사람이 읽는 단위 */
+function formatBytes(b) {
+  if (b < 1024) return b + ' B';
+  if (b < 1024 * 1024) return (b / 1024).toFixed(1) + ' KB';
+  return (b / 1024 / 1024).toFixed(2) + ' MB';
+}
+
+/** 짧은 진동 (지원 기기 + 설정 ON 일 때만) */
+function haptic(ms) {
+  if (!S().settings.haptic) return;
+  if (navigator.vibrate) { try { navigator.vibrate(ms || 12); } catch (e) {} }
+}
+
+/* ---------- 토스트 ---------- */
+function toast(message, type) {
+  const layer = $('#toast-layer');
+  const el = document.createElement('div');
+  const icon = type === 'err' ? 'fa-circle-exclamation'
+             : type === 'info' ? 'fa-circle-info' : 'fa-circle-check';
+  el.className = 'toast ' + (type || 'ok');
+  el.innerHTML = '<i class="fa-solid ' + icon + '"></i><span>' + esc(message) + '</span>';
+  layer.appendChild(el);
+  setTimeout(() => {
+    el.classList.add('out');
+    setTimeout(() => el.remove(), 260);
+  }, 1750);
+}
+
+/* ---------- 백드롭 공용 ---------- */
+let backdropHandler = null;
+function showBackdrop(onClose) {
+  backdropHandler = onClose;
+  $('#backdrop').classList.add('show');
+}
+function hideBackdrop() {
+  backdropHandler = null;
+  $('#backdrop').classList.remove('show');
+}
+
+/* ---------- 액션시트 ---------- */
+/**
+ * openSheet('제목', [{ label, icon, danger, onClick }])
+ */
+function openSheet(title, items) {
+  const sheet = $('#sheet');
+  const rows = items.map((it, i) =>
+    '<button class="sheet-item ' + (it.danger ? 'danger' : '') + '" data-i="' + i + '">' +
+      '<i class="' + (it.icon || 'fa-solid fa-circle') + '"></i><span>' + esc(it.label) + '</span>' +
+    '</button>'
+  ).join('');
+
+  sheet.innerHTML =
+    '<div class="sheet-box">' +
+      (title ? '<div class="sheet-title">' + esc(title) + '</div>' : '') + rows +
+    '</div>' +
+    '<button class="sheet-cancel" data-cancel="1">취소</button>';
+
+  sheet.querySelectorAll('[data-i]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const item = items[Number(btn.dataset.i)];
+      closeSheet();
+      if (item && item.onClick) setTimeout(item.onClick, 180);
+    });
+  });
+  sheet.querySelector('[data-cancel]').addEventListener('click', closeSheet);
+
+  showBackdrop(closeSheet);
+  requestAnimationFrame(() => sheet.classList.add('show'));
+  haptic(10);
+}
+function closeSheet() {
+  $('#sheet').classList.remove('show');
+  hideBackdrop();
+}
+
+/* ---------- 모달 ---------- */
+/**
+ * openModal({ title, desc, bodyHTML, okText, cancelText, danger, onOk(box), onOpen(box) })
+ * onOk 가 false 를 반환하면 모달이 닫히지 않는다(검증 실패 처리).
+ */
+function openModal(opt) {
+  const modal = $('#modal'), box = $('#modal-box');
+  box.innerHTML =
+    '<div class="modal-hd">' +
+      '<h4>' + esc(opt.title || '') + '</h4>' +
+      (opt.desc ? '<p>' + esc(opt.desc) + '</p>' : '') +
+    '</div>' +
+    (opt.bodyHTML ? '<div class="modal-bd">' + opt.bodyHTML + '</div>' : '') +
+    '<div class="modal-ft">' +
+      '<button class="btn btn-ghost" data-no>' + esc(opt.cancelText || '취소') + '</button>' +
+      '<button class="btn ' + (opt.danger ? 'btn-danger' : 'btn-primary') + '" data-yes>' +
+        esc(opt.okText || '확인') + '</button>' +
+    '</div>';
+
+  box.querySelector('[data-no]').addEventListener('click', closeModal);
+  box.querySelector('[data-yes]').addEventListener('click', () => {
+    if (opt.onOk && opt.onOk(box) === false) return;  // 검증 실패 시 유지
+    closeModal();
+  });
+
+  showBackdrop(closeModal);
+  modal.classList.add('show');
+  if (opt.onOpen) setTimeout(() => opt.onOpen(box), 60);
+  haptic(10);
+}
+function closeModal() {
+  $('#modal').classList.remove('show');
+  hideBackdrop();
+}
+
+/** 확인 다이얼로그 단축 */
+function confirmDialog(title, desc, onOk, danger) {
+  openModal({ title, desc, okText: danger ? '삭제' : '확인', danger, onOk });
+}
+
+/* ---------- textarea 자동 높이 ---------- */
+function autoGrow(el, max) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, max || 999) + 'px';
+}
+
+/* ---------- 글자수 카운터 ---------- */
+/**
+ * updateCounter(counterEl, current, max, labelPrefix)
+ * → "설명 (120/2400)" 형태로 갱신하고 임계치에 따라 색을 바꾼다.
+ */
+function updateCounter(el, cur, max, label) {
+  if (!el) return;
+  el.textContent = (label ? label + ' ' : '') + '(' + cur + '/' + max + ')';
+  el.classList.toggle('warn', cur >= max * 0.9 && cur < max);
+  el.classList.toggle('over', cur >= max);
+}
+
+/* =========================================================================
+   4) Theme — dark / light / auto
+   ========================================================================= */
+const media = window.matchMedia('(prefers-color-scheme: dark)');
+
+function applyTheme() {
+  const mode = S().settings.theme;
+  const resolved = mode === 'auto' ? (media.matches ? 'dark' : 'light') : mode;
+  document.documentElement.setAttribute('data-theme', resolved);
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', resolved === 'dark' ? '#0e0e0e' : '#ffffff');
+}
+media.addEventListener('change', () => { if (S().settings.theme === 'auto') applyTheme(); });
+
+/* =========================================================================
+   5) renderTabs — 탭 네비게이션
+   ========================================================================= */
+function renderTabs() {
+  const nav = $('#tabs');
+  const cur = S().ui.tab;
+
+  nav.innerHTML = TABS.map(t => {
+    const badge = tabBadge(t.id);
+    return '<button class="tab ' + (t.id === cur ? 'active' : '') + '" data-tab="' + t.id + '">' +
+             '<i class="' + t.icon + '"></i><span>' + t.label + '</span>' +
+             (badge ? '<span class="badge">' + badge + '</span>' : '') +
+           '</button>';
+  }).join('');
+
+  nav.querySelectorAll('[data-tab]').forEach(btn => {
+    btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+  });
+
+  // 활성 탭이 화면 밖이면 가운데로 스크롤
+  const active = nav.querySelector('.tab.active');
+  if (active) {
+    const left = active.offsetLeft - (nav.clientWidth - active.clientWidth) / 2;
+    nav.scrollTo({ left: Math.max(0, left), behavior: 'smooth' });
+  }
+}
+
+/** 탭 뱃지 숫자 (메시지 수 / 로어북 수) */
+function tabBadge(id) {
+  if (id === 'intro')    return S().intro.messages.length || 0;
+  if (id === 'lorebook') return S().lore.entries.length || 0;
+  return 0;
+}
+
+/** 탭 전환 : 이전 탭 스크롤 저장 → 렌더 → 새 탭 스크롤 복원 */
+function switchTab(id) {
+  const st = S();
+  if (!TABS.some(t => t.id === id)) return;
+  if (st.ui.tab === id) { $('#view').scrollTo({ top: 0, behavior: 'smooth' }); return; }
+
+  st.ui.scroll[st.ui.tab] = $('#view').scrollTop;   // 현재 스크롤 저장
+  st.ui.tab = id;
+  Store.save();
+  haptic(8);
+  renderTabs();
+  renderView();
+}
+
+/** 현재 탭에 맞는 화면을 그린다 (라우터 역할) */
+function renderView() {
+  const st  = S();
+  const tab = st.ui.tab;
+  const view = $('#view');
+  const meta = TABS.find(t => t.id === tab);
+
+  // 헤더 텍스트
+  $('#hd-sub').textContent = meta ? meta.sub : '';
+
+  // 채팅 탭 여부에 따라 패딩/하단 입력창 토글
+  view.classList.toggle('chat', tab === 'intro');
+  $('#composer').style.display = tab === 'intro' ? 'block' : 'none';
+
+  view.innerHTML = '';
+  switch (tab) {
+    case 'prompt':   renderPrompt(view);   break;
+    case 'intro':    renderIntro(view);    break;
+    case 'lorebook': renderLorebook(view); break;
+    case 'style':    renderStyle(view);    break;
+    case 'about':    renderAbout(view);    break;
+    case 'settings': renderSettings(view); break;
+  }
+
+  // 스크롤 위치 복원 (인트로는 항상 맨 아래)
+  requestAnimationFrame(() => {
+    if (tab === 'intro') scrollChatToBottom(false);
+    else view.scrollTop = st.ui.scroll[tab] || 0;
+  });
+}
+
+/* =========================================================================
+   6-1) renderPrompt — 이미지 / 이름 / 설명
+   ========================================================================= */
+function renderPrompt(root) {
+  const p = S().prompt;
+
+  root.innerHTML =
+    /* --- 이미지 --- */
+    '<section class="sec">' +
+      '<div class="sec-t"><h3>대표 이미지</h3>' +
+        '<span class="cnt">' + (p.image ? '등록됨' : '선택 사항') + '</span></div>' +
+      '<div class="uploader ' + (p.image ? 'has-img' : '') + '" id="uploader">' +
+        (p.image
+          ? '<img class="up-img" src="' + p.image + '" alt="대표 이미지" />' +
+            '<div class="up-tools">' +
+              '<button class="up-tool" id="img-change"><i class="fa-solid fa-rotate"></i>변경</button>' +
+              '<button class="up-tool del" id="img-delete"><i class="fa-solid fa-trash"></i>삭제</button>' +
+            '</div>'
+          : '<div class="up-empty">' +
+              '<div class="ico"><i class="fa-solid fa-image"></i></div>' +
+              '<div class="t1">이미지 업로드</div>' +
+              '<div class="t2">클릭하거나 파일을 끌어다 놓으세요<br/>JPG · PNG · WEBP</div>' +
+            '</div>') +
+      '</div>' +
+      '<p class="hint">업로드한 이미지는 자동으로 압축되어 기기에만 저장됩니다.</p>' +
+    '</section>' +
+
+    /* --- 이름 --- */
+    '<section class="sec">' +
+      '<div class="sec-t"><h3>이름</h3><span class="cnt" id="cnt-name"></span></div>' +
+      '<input id="in-name" class="field" type="text" maxlength="' + CONFIG.NAME_MAX + '" ' +
+        'placeholder="캐릭터 이름" value="' + esc(p.name) + '" />' +
+      '<p class="hint">최대 ' + CONFIG.NAME_MAX + '자까지 입력할 수 있어요.</p>' +
+    '</section>' +
+
+    /* --- 설명 --- */
+    '<section class="sec">' +
+      '<div class="sec-t"><h3>설명</h3><span class="cnt" id="cnt-desc"></span></div>' +
+      '<textarea id="in-desc" class="field no-bar" rows="8" maxlength="' + CONFIG.DESC_MAX + '" ' +
+        'placeholder="캐릭터의 성격, 말투, 관계, 배경을 자세히 적어주세요.&#10;구체적으로 적을수록 대화 품질이 좋아집니다.">' +
+        esc(p.desc) + '</textarea>' +
+      '<p class="hint">예) 이름·나이·성격·말버릇·현재 상황·유저와의 관계</p>' +
+    '</section>' +
+
+    /* --- 저장 --- */
+    '<section class="sec">' +
+      '<button class="btn btn-primary btn-block" id="btn-save-prompt">' +
+        '<i class="fa-solid fa-check"></i>프롬프트 저장</button>' +
+    '</section>';
+
+  /* ----- 이벤트 바인딩 ----- */
+  const nameEl = $('#in-name', root);
+  const descEl = $('#in-desc', root);
+  const saveBtn = $('#btn-save-prompt', root);
+
+  /** 이름 유무에 따라 저장 버튼 활성/비활성 */
+  function syncSaveBtn() {
+    const ok = nameEl.value.trim().length > 0;
+    saveBtn.classList.toggle('is-disabled', !ok);
+  }
+
+  /** 카운터 두 개 갱신 */
+  function syncCounters() {
+    updateCounter($('#cnt-name', root), nameEl.value.length, CONFIG.NAME_MAX, '이름');
+    updateCounter($('#cnt-desc', root), descEl.value.length, CONFIG.DESC_MAX, '설명');
+  }
+
+  nameEl.addEventListener('input', () => {
+    // maxlength 로 이미 막히지만, 붙여넣기 등 예외 상황까지 방어
+    if (nameEl.value.length > CONFIG.NAME_MAX) nameEl.value = nameEl.value.slice(0, CONFIG.NAME_MAX);
+    S().prompt.name = nameEl.value;
+    syncCounters(); syncSaveBtn(); Store.save(); flashSaving();
+    $('#hd-title').textContent = nameEl.value.trim() || '플롯 만들기';
+  });
+
+  descEl.addEventListener('input', () => {
+    if (descEl.value.length > CONFIG.DESC_MAX) descEl.value = descEl.value.slice(0, CONFIG.DESC_MAX);
+    S().prompt.desc = descEl.value;
+    syncCounters(); Store.save(); flashSaving();
+  });
+
+  saveBtn.addEventListener('click', () => {
+    if (!nameEl.value.trim()) return;
+    Store.save(true); haptic(16); toast('프롬프트를 저장했어요');
+  });
+
+  /* 이미지 업로더 */
+  const up = $('#uploader', root);
+  up.addEventListener('click', e => {
+    if (e.target.closest('#img-delete') || e.target.closest('#img-change')) return;
+    pickImage();
+  });
+  const changeBtn = $('#img-change', root);
+  const deleteBtn = $('#img-delete', root);
+  if (changeBtn) changeBtn.addEventListener('click', pickImage);
+  if (deleteBtn) deleteBtn.addEventListener('click', () => {
+    confirmDialog('이미지를 삭제할까요?', '삭제하면 되돌릴 수 없습니다.', () => {
+      S().prompt.image = '';
+      Store.save(true); renderView(); toast('이미지를 삭제했어요');
+    }, true);
+  });
+
+  // 드래그 앤 드롭
+  ['dragenter', 'dragover'].forEach(ev =>
+    up.addEventListener(ev, e => { e.preventDefault(); up.classList.add('drag'); }));
+  ['dragleave', 'drop'].forEach(ev =>
+    up.addEventListener(ev, e => { e.preventDefault(); up.classList.remove('drag'); }));
+  up.addEventListener('drop', e => {
+    const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) handleImageFile(f);
+  });
+
+  syncCounters(); syncSaveBtn();
+}
+
+/** 파일 선택창 열기 */
+function pickImage() { $('#file-image').click(); }
+
+/**
+ * 선택한 이미지를 canvas 로 리사이즈 → dataURL 로 상태에 저장
+ * (localStorage 용량을 아끼기 위해 반드시 축소한다)
+ */
+function handleImageFile(file) {
+  if (!file || !/^image\//.test(file.type)) { toast('이미지 파일만 올릴 수 있어요', 'err'); return; }
+
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const img = new Image();
+    img.onload = () => {
+      const max = CONFIG.IMAGE_MAX_PX;
+      let { width: w, height: h } = img;
+      if (w > max || h > max) {
+        const r = Math.min(max / w, max / h);
+        w = Math.round(w * r); h = Math.round(h * r);
+      }
+      const cv = document.createElement('canvas');
+      cv.width = w; cv.height = h;
+      cv.getContext('2d').drawImage(img, 0, 0, w, h);
+
+      try {
+        S().prompt.image = cv.toDataURL('image/jpeg', CONFIG.IMAGE_QUALITY);
+        Store.save(true);
+        renderView();
+        toast('이미지를 등록했어요');
+      } catch (e) {
+        toast('이미지 저장에 실패했어요', 'err');
+      }
+    };
+    img.onerror = () => toast('이미지를 읽지 못했어요', 'err');
+    img.src = ev.target.result;
+  };
+  reader.onerror = () => toast('파일을 읽지 못했어요', 'err');
+  reader.readAsDataURL(file);
+}
+
+/* =========================================================================
+   6-2) renderIntro — 채팅형 인트로
+   ========================================================================= */
+function renderIntro(root) {
+  root.innerHTML = '<div class="chat-wrap" id="chat-wrap"></div>';
+  renderMessages();
+  syncComposer();
+}
+
+/** 메시지 목록 렌더 (날짜 구분선 포함) */
+function renderMessages() {
+  const wrap = $('#chat-wrap');
+  if (!wrap) return;
+
+  const list = S().intro.messages;
+  const name = S().prompt.name.trim() || '내레이터';
+  const img  = S().prompt.image;
+
+  if (!list.length) {
+    wrap.innerHTML =
+      '<div class="chat-empty">' +
+        '<div class="ico"><i class="fa-solid fa-comment-dots"></i></div>' +
+        '<div class="t1">첫 상황을 만들어 보세요</div>' +
+        '<div class="t2">내레이터와 유저를 번갈아 선택해<br/>대화가 시작되는 장면을 작성할 수 있어요.</div>' +
+      '</div>';
+    return;
+  }
+
+  let html = '';
+  let lastDay = '';
+  list.forEach(m => {
+    // 날짜가 바뀌면 구분선 삽입
+    const key = dayKey(m.ts);
+    if (key !== lastDay) {
+      lastDay = key;
+      html += '<div class="day-sep"><span>' + formatDate(m.ts) + '</span></div>';
+    }
+
+    const me = m.speaker === 'user';
+    const avatar = me
+      ? '<div class="ava me"><i class="fa-solid fa-user"></i></div>'
+      : (img ? '<div class="ava"><img src="' + img + '" alt="" /></div>'
+             : '<div class="ava"><i class="fa-solid fa-feather"></i></div>');
+
+    html +=
+      '<div class="row ' + (me ? 'me' : '') + '" data-id="' + m.id + '">' +
+        avatar +
+        '<div class="bub-col">' +
+          '<div class="bub-name">' + esc(me ? '유저' : name) + '</div>' +
+          '<div class="bub ' + (me ? '' : 'narr') + '" data-bub="' + m.id + '">' +
+            esc(m.text) +
+            (m.edited ? '<span class="edited">수정됨</span>' : '') +
+          '</div>' +
+          '<div class="bub-meta"><span class="bub-time">' + formatTime(m.ts) + '</span></div>' +
+        '</div>' +
+      '</div>';
+  });
+
+  wrap.innerHTML = html;
+  bindLongPress(wrap);
+}
+
+/** 말풍선 길게 누르기 → 액션시트 */
+function bindLongPress(wrap) {
+  wrap.querySelectorAll('[data-bub]').forEach(bub => {
+    let timer = null, fired = false, sx = 0, sy = 0;
+
+    const start = e => {
+      fired = false;
+      const pt = e.touches ? e.touches[0] : e;
+      sx = pt.clientX; sy = pt.clientY;
+      bub.classList.add('press');
+      timer = setTimeout(() => {
+        fired = true;
+        bub.classList.remove('press');
+        haptic(22);
+        openMessageMenu(bub.dataset.bub);
+      }, CONFIG.LONGPRESS_MS);
+    };
+    const move = e => {
+      const pt = e.touches ? e.touches[0] : e;
+      if (Math.abs(pt.clientX - sx) > 10 || Math.abs(pt.clientY - sy) > 10) cancel();
+    };
+    const cancel = () => { clearTimeout(timer); bub.classList.remove('press'); };
+
+    bub.addEventListener('mousedown',  start);
+    bub.addEventListener('touchstart', start, { passive: true });
+    bub.addEventListener('mousemove',  move);
+    bub.addEventListener('touchmove',  move, { passive: true });
+    bub.addEventListener('mouseup',    cancel);
+    bub.addEventListener('mouseleave', cancel);
+    bub.addEventListener('touchend',   cancel);
+    bub.addEventListener('touchcancel',cancel);
+    // 데스크톱 우클릭도 동일 메뉴
+    bub.addEventListener('contextmenu', e => { e.preventDefault(); openMessageMenu(bub.dataset.bub); });
+    // 길게 누른 뒤 올라오는 click 은 무시
+    bub.addEventListener('click', e => { if (fired) { e.preventDefault(); e.stopPropagation(); } });
+  });
+}
+
+/** 메시지 액션시트 (수정 / 복제 / 삭제) */
+function openMessageMenu(id) {
+  const m = S().intro.messages.find(x => x.id === id);
+  if (!m) return;
+  const preview = m.text.length > 26 ? m.text.slice(0, 26) + '…' : m.text;
+
+  openSheet(preview, [
+    { label:'수정',        icon:'fa-solid fa-pen',   onClick:() => startEditMessage(id) },
+    { label:'복제',        icon:'fa-solid fa-copy',  onClick:() => duplicateMessage(id) },
+    { label:'화자 바꾸기', icon:'fa-solid fa-repeat',onClick:() => toggleMessageSpeaker(id) },
+    { label:'삭제', icon:'fa-solid fa-trash', danger:true, onClick:() => {
+        confirmDialog('메시지를 삭제할까요?', '삭제한 메시지는 복구할 수 없습니다.',
+          () => deleteMessage(id), true);
+      }
+    }
+  ]);
+}
+
+/* ---------- 메시지 CRUD ---------- */
+
+/** 새 메시지 추가 */
+function addMessage(text, speaker) {
+  const t = String(text || '').trim();
+  if (!t) return;
+  S().intro.messages.push({
+    id: uid('msg'), speaker: speaker || S().ui.speaker,
+    text: t, ts: Date.now(), edited: false
+  });
+  Store.save(true);
+  renderMessages(); renderTabs(); scrollChatToBottom(true); haptic(12);
+}
+
+/** 메시지 내용 수정 */
+function updateMessage(id, text) {
+  const m = S().intro.messages.find(x => x.id === id);
+  if (!m) return;
+  m.text = String(text).trim();
+  m.edited = true;
+  Store.save(true);
+  renderMessages();
+  toast('메시지를 수정했어요');
+}
+
+/** 메시지 삭제 */
+function deleteMessage(id) {
+  const list = S().intro.messages;
+  const idx = list.findIndex(x => x.id === id);
+  if (idx < 0) return;
+
+  // 사라지는 애니메이션 후 실제 삭제
+  const row = $('.row[data-id="' + id + '"]');
+  if (row) {
+    row.style.transition = 'opacity .2s ease, transform .2s ease';
+    row.style.opacity = '0';
+    row.style.transform = 'scale(.94)';
+  }
+  setTimeout(() => {
+    list.splice(idx, 1);
+    if (editingId === id) cancelEditMessage();
+    Store.save(true);
+    renderMessages(); renderTabs();
+    toast('메시지를 삭제했어요');
+  }, 180);
+  haptic(16);
+}
+
+/** 메시지 복제 (바로 아래에 삽입) */
+function duplicateMessage(id) {
+  const list = S().intro.messages;
+  const idx = list.findIndex(x => x.id === id);
+  if (idx < 0) return;
+  const src = list[idx];
+  list.splice(idx + 1, 0, {
+    id: uid('msg'), speaker: src.speaker, text: src.text, ts: Date.now(), edited: false
+  });
+  Store.save(true);
+  renderMessages(); renderTabs(); toast('메시지를 복제했어요');
+}
+
+/** 화자 전환 (내레이터 ↔ 유저) */
+function toggleMessageSpeaker(id) {
+  const m = S().intro.messages.find(x => x.id === id);
+  if (!m) return;
+  m.speaker = m.speaker === 'user' ? 'narrator' : 'user';
+  Store.save(true);
+  renderMessages();
+}
+
+/** 채팅 영역을 맨 아래로 */
+function scrollChatToBottom(smooth) {
+  const view = $('#view');
+  if (!view) return;
+  view.scrollTo({ top: view.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
+}
+
+/* =========================================================================
+   6-3) renderLorebook — 동적 리스트 (추가/삭제/수정/접기/검색)
+   ========================================================================= */
+function renderLorebook(root) {
+  const q = S().ui.loreQuery || '';
+
+  root.innerHTML =
+    '<section class="sec">' +
+      '<div class="search">' +
+        '<i class="fa-solid fa-magnifying-glass"></i>' +
+        '<input id="lore-q" class="field" type="text" placeholder="제목 · 키워드 · 내용 검색" value="' + esc(q) + '" />' +
+        '<button class="clr ' + (q ? 'show' : '') + '" id="lore-q-clear"><i class="fa-solid fa-xmark"></i></button>' +
+      '</div>' +
+      '<button class="btn btn-primary btn-block" id="lore-add">' +
+        '<i class="fa-solid fa-plus"></i>항목 추가</button>' +
+    '</section>' +
+    '<section class="sec">' +
+      '<div class="sec-t"><h3>세계관 항목</h3><span class="cnt" id="lore-cnt"></span></div>' +
+      '<div id="lore-list"></div>' +
+    '</section>';
+
+  const qEl = $('#lore-q', root);
+  qEl.addEventListener('input', () => {
+    S().ui.loreQuery = qEl.value;
+    $('#lore-q-clear', root).classList.toggle('show', !!qEl.value);
+    Store.save();
+    renderLoreList();               // 리스트만 다시 그려 포커스 유지
+  });
+  $('#lore-q-clear', root).addEventListener('click', () => {
+    qEl.value = ''; S().ui.loreQuery = '';
+    $('#lore-q-clear', root).classList.remove('show');
+    Store.save(); renderLoreList(); qEl.focus();
+  });
+  $('#lore-add', root).addEventListener('click', addLoreEntry);
+
+  renderLoreList();
+}
+
+/** 검색어로 필터링된 항목 반환 */
+function filteredLore() {
+  const q = (S().ui.loreQuery || '').trim().toLowerCase();
+  const all = S().lore.entries;
+  if (!q) return all;
+  return all.filter(e =>
+    (e.title || '').toLowerCase().includes(q) ||
+    (e.keywords || '').toLowerCase().includes(q) ||
+    (e.content || '').toLowerCase().includes(q)
+  );
+}
+
+/** 로어북 리스트 렌더 */
+function renderLoreList() {
+  const box = $('#lore-list');
+  if (!box) return;
+
+  const all  = S().lore.entries;
+  const list = filteredLore();
+  const cnt  = $('#lore-cnt');
+  if (cnt) cnt.textContent = list.length + ' / ' + all.length + '개';
+
+  if (!all.length) {
+    box.innerHTML =
+      '<div class="empty">' +
+        '<div class="ico"><i class="fa-solid fa-book-open"></i></div>' +
+        '<div class="t1">아직 등록된 항목이 없어요</div>' +
+        '<div class="t2">장소, 인물, 사건 같은 세계관 정보를<br/>키워드와 함께 저장해 보세요.</div>' +
+      '</div>';
+    return;
+  }
+  if (!list.length) {
+    box.innerHTML =
+      '<div class="empty">' +
+        '<div class="ico"><i class="fa-solid fa-magnifying-glass"></i></div>' +
+        '<div class="t1">검색 결과가 없어요</div>' +
+        '<div class="t2">다른 키워드로 찾아보세요.</div>' +
+      '</div>';
+    return;
+  }
+
+  box.innerHTML = list.map(e => {
+    const kws = String(e.keywords || '').split(',').map(s => s.trim()).filter(Boolean);
+    return '' +
+    '<article class="lore ' + (e.open ? 'open' : '') + ' ' + (e.enabled === false ? 'off' : '') + '" data-id="' + e.id + '">' +
+      '<div class="lore-hd" data-toggle="' + e.id + '">' +
+        '<i class="fa-solid fa-chevron-right chev"></i>' +
+        '<div class="ti">' +
+          '<div class="nm">' + esc(e.title || '제목 없음') + '</div>' +
+          '<div class="kw">' + (kws.length ? esc(kws.join(' · ')) : '키워드 없음') +
+            ' · ' + (e.content ? e.content.length : 0) + '자</div>' +
+        '</div>' +
+        '<button class="ibtn" data-more="' + e.id + '"><i class="fa-solid fa-ellipsis"></i></button>' +
+      '</div>' +
+      '<div class="lore-body"><div class="inner"><div class="pad">' +
+        '<div>' +
+          '<label class="lbl">제목</label>' +
+          '<input class="field" data-f="title" data-id="' + e.id + '" type="text" ' +
+            'placeholder="예) 붉은 탑" value="' + esc(e.title) + '" />' +
+        '</div>' +
+        '<div>' +
+          '<label class="lbl">키워드 <span style="color:var(--text-dim);font-weight:500">(쉼표로 구분)</span></label>' +
+          '<input class="field" data-f="keywords" data-id="' + e.id + '" type="text" ' +
+            'maxlength="' + CONFIG.LORE_KEY_MAX + '" placeholder="탑, 마법사, 봉인" value="' + esc(e.keywords) + '" />' +
+          '<div class="chips" data-chips="' + e.id + '">' +
+            kws.map(k => '<span class="chip"><i class="fa-solid fa-hashtag" style="font-size:9px"></i>' + esc(k) + '</span>').join('') +
+          '</div>' +
+        '</div>' +
+        '<div>' +
+          '<label class="lbl">내용</label>' +
+          '<textarea class="field no-bar" data-f="content" data-id="' + e.id + '" rows="5" ' +
+            'maxlength="' + CONFIG.LORE_TXT_MAX + '" placeholder="이 키워드가 등장할 때 AI가 참고할 설정을 적어주세요.">' +
+            esc(e.content) + '</textarea>' +
+          '<div class="hint" data-len="' + e.id + '">' + (e.content ? e.content.length : 0) + ' / ' + CONFIG.LORE_TXT_MAX + '자</div>' +
+        '</div>' +
+        '<div class="lore-foot">' +
+          '<div class="opt" style="padding:0;border:none;gap:9px">' +
+            '<div class="sw ' + (e.enabled === false ? '' : 'on') + '" data-enable="' + e.id + '"></div>' +
+            '<span style="font-size:12px;font-weight:600;color:var(--text-sub)">활성화</span>' +
+          '</div>' +
+          '<button class="btn btn-ghost btn-sm" data-del="' + e.id + '">' +
+            '<i class="fa-solid fa-trash"></i>삭제</button>' +
+        '</div>' +
+      '</div></div></div>' +
+    '</article>';
+  }).join('');
+
+  bindLoreEvents(box);
+}
+
+/** 로어북 카드 내부 이벤트 바인딩 */
+function bindLoreEvents(box) {
+  // 헤더 클릭 → 접기/펼치기
+  box.querySelectorAll('[data-toggle]').forEach(hd => {
+    hd.addEventListener('click', e => {
+      if (e.target.closest('[data-more]')) return;
+      toggleLoreEntry(hd.dataset.toggle);
+    });
+  });
+
+  // 더보기 메뉴
+  box.querySelectorAll('[data-more]').forEach(btn => {
+    btn.addEventListener('click', e => { e.stopPropagation(); openLoreMenu(btn.dataset.more); });
+  });
+
+  // 입력 필드 → 상태 즉시 반영 (재렌더 없이 부분 갱신 → 포커스 유지)
+  box.querySelectorAll('[data-f]').forEach(input => {
+    input.addEventListener('input', () => {
+      const entry = S().lore.entries.find(x => x.id === input.dataset.id);
+      if (!entry) return;
+      const field = input.dataset.f;
+      entry[field] = input.value;
+
+      const card = box.querySelector('.lore[data-id="' + entry.id + '"]');
+      if (card) {
+        // 헤더 요약 갱신
+        const kws = String(entry.keywords || '').split(',').map(s => s.trim()).filter(Boolean);
+        card.querySelector('.nm').textContent = entry.title || '제목 없음';
+        card.querySelector('.kw').textContent =
+          (kws.length ? kws.join(' · ') : '키워드 없음') + ' · ' + (entry.content || '').length + '자';
+
+        if (field === 'keywords') {
+          const chips = card.querySelector('[data-chips]');
+          if (chips) chips.innerHTML = kws.map(k =>
+            '<span class="chip"><i class="fa-solid fa-hashtag" style="font-size:9px"></i>' + esc(k) + '</span>').join('');
+        }
+        if (field === 'content') {
+          const len = card.querySelector('[data-len]');
+          if (len) len.textContent = entry.content.length + ' / ' + CONFIG.LORE_TXT_MAX + '자';
+        }
+      }
+      Store.save(); flashSaving();
+    });
+  });
+
+  // 활성화 스위치
+  box.querySelectorAll('[data-enable]').forEach(sw => {
+    sw.addEventListener('click', e => {
+      e.stopPropagation();
+      const entry = S().lore.entries.find(x => x.id === sw.dataset.enable);
+      if (!entry) return;
+      entry.enabled = entry.enabled === false;   // false ↔ true
+      sw.classList.toggle('on', entry.enabled !== false);
+      const card = box.querySelector('.lore[data-id="' + entry.id + '"]');
+      if (card) card.classList.toggle('off', entry.enabled === false);
+      Store.save(); haptic(10);
+    });
+  });
+
+  // 삭제
+  box.querySelectorAll('[data-del]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const id = btn.dataset.del;
+      const entry = S().lore.entries.find(x => x.id === id);
+      confirmDialog('항목을 삭제할까요?',
+        '"' + (entry && entry.title ? entry.title : '제목 없음') + '" 항목이 삭제됩니다.',
+        () => deleteLoreEntry(id), true);
+    });
+  });
+}
+
+/** 항목 추가 */
+function addLoreEntry() {
+  // 검색 중이면 새 항목이 안 보이므로 검색어를 비운다
+  S().ui.loreQuery = '';
+  S().lore.entries.unshift({
+    id: uid('lore'), title: '', keywords: '', content: '', open: true, enabled: true
+  });
+  Store.save(true);
+  renderLorebook($('#view'));
+  renderTabs();
+  haptic(14);
+  // 새 카드의 제목 입력에 포커스
+  setTimeout(() => {
+    const first = $('#lore-list .lore input[data-f="title"]');
+    if (first) first.focus();
+  }, 240);
+  toast('항목을 추가했어요');
+}
+
+/** 항목 삭제 */
+function deleteLoreEntry(id) {
+  const list = S().lore.entries;
+  const idx = list.findIndex(x => x.id === id);
+  if (idx < 0) return;
+  list.splice(idx, 1);
+  Store.save(true);
+  renderLoreList(); renderTabs();
+  toast('항목을 삭제했어요');
+}
+
+/** 접기/펼치기 */
+function toggleLoreEntry(id) {
+  const entry = S().lore.entries.find(x => x.id === id);
+  if (!entry) return;
+  entry.open = !entry.open;
+  const card = $('.lore[data-id="' + id + '"]');
+  if (card) card.classList.toggle('open', entry.open);
+  Store.save(); haptic(8);
+}
+
+/** 항목 더보기 메뉴 */
+function openLoreMenu(id) {
+  const list = S().lore.entries;
+  const idx = list.findIndex(x => x.id === id);
+  if (idx < 0) return;
+  const entry = list[idx];
+
+  openSheet(entry.title || '제목 없음', [
+    { label: entry.open ? '접기' : '펼치기', icon:'fa-solid fa-chevron-down',
+      onClick:() => toggleLoreEntry(id) },
+    { label:'복제', icon:'fa-solid fa-copy', onClick:() => {
+        list.splice(idx + 1, 0, Object.assign({}, entry, {
+          id: uid('lore'), title: (entry.title || '제목 없음') + ' 복사본', open: false
+        }));
+        Store.save(true); renderLoreList(); renderTabs(); toast('항목을 복제했어요');
+      }
+    },
+    { label:'맨 위로 이동', icon:'fa-solid fa-arrow-up', onClick:() => {
+        list.splice(idx, 1); list.unshift(entry);
+        Store.save(true); renderLoreList();
+      }
+    },
+    { label:'삭제', icon:'fa-solid fa-trash', danger:true, onClick:() => {
+        confirmDialog('항목을 삭제할까요?', '삭제한 항목은 복구할 수 없습니다.',
+          () => deleteLoreEntry(id), true);
+      }
+    }
+  ]);
+}
+
+/* =========================================================================
+   6-4) renderStyle — 체크박스 / 토글 / 슬라이더 / 드롭다운
+   ========================================================================= */
+function renderStyle(root) {
+  const s = S().style;
+
+  root.innerHTML =
+    /* --- 말투 (체크박스, 다중 선택) --- */
+    '<section class="sec">' +
+      '<div class="sec-t"><h3>말투</h3><span class="cnt" id="tone-cnt">' + s.tones.length + '개 선택</span></div>' +
+      '<div class="check-grid" id="tones">' +
+        TONE_OPTIONS.map(t =>
+          '<button class="check ' + (s.tones.includes(t.id) ? 'on' : '') + '" data-tone="' + t.id + '">' +
+            '<span class="box"><i class="fa-solid fa-check"></i></span>' +
+            '<span><i class="' + t.icon + '" style="margin-right:5px;opacity:.75"></i>' + t.label + '</span>' +
+          '</button>').join('') +
+      '</div>' +
+    '</section>' +
+
+    /* --- 스위치 --- */
+    '<section class="sec">' +
+      '<div class="sec-t"><h3>표현 옵션</h3></div>' +
+      '<div class="card"><div class="opt-list">' +
+        switchRow('emoji',     '이모지 사용',   '답변에 이모지를 섞어 표현해요',        s.emoji) +
+        switchRow('narration', '지문 포함',     '행동·상황 묘사를 함께 작성해요',       s.narration) +
+        switchRow('banmal',    '반말 사용',     '유저에게 편하게 말을 놓아요',          s.banmal) +
+        switchRow('safeMode',  '안전 모드',     '민감한 표현을 자동으로 걸러요',        s.safeMode) +
+      '</div></div>' +
+    '</section>' +
+
+    /* --- 슬라이더 --- */
+    '<section class="sec">' +
+      '<div class="sec-t"><h3>세부 조절</h3></div>' +
+      '<div class="card" style="display:flex;flex-direction:column;gap:18px">' +
+        sliderRow('creativity', '창의성', s.creativity, ['안정적', '균형', '창의적']) +
+        sliderRow('memory',     '기억 강도', s.memory,   ['짧게', '보통', '길게']) +
+      '</div>' +
+    '</section>' +
+
+    /* --- 드롭다운 --- */
+    '<section class="sec">' +
+      '<div class="sec-t"><h3>출력 형식</h3></div>' +
+      '<div class="card" style="display:flex;flex-direction:column;gap:13px">' +
+        selectRow('length', '응답 길이', s.length, [
+          ['short','짧게 (1~2문장)'], ['normal','보통 (3~5문장)'], ['long','길게 (6문장 이상)']
+        ]) +
+        selectRow('person', '서술 시점', s.person, [
+          ['first','1인칭 (나는…)'], ['third','3인칭 (그는…)']
+        ]) +
+        selectRow('language', '언어', s.language, [
+          ['ko','한국어'], ['en','English'], ['ja','日本語']
+        ]) +
+      '</div>' +
+    '</section>' +
+
+    /* --- 실시간 미리보기 --- */
+    '<section class="sec">' +
+      '<div class="sec-t"><h3>적용 요약</h3><span class="cnt">실시간</span></div>' +
+      '<div class="preview" id="style-preview"></div>' +
+    '</section>';
+
+  bindStyleEvents(root);
+  renderStylePreview();
+}
+
+/* ----- 스타일 탭 부분 템플릿 ----- */
+function switchRow(key, title, desc, on) {
+  return '<div class="opt">' +
+    '<div class="info"><div class="t">' + title + '</div><div class="d">' + desc + '</div></div>' +
+    '<div class="sw ' + (on ? 'on' : '') + '" data-sw="' + key + '"></div>' +
+  '</div>';
+}
+
+function sliderRow(key, title, value, ticks) {
+  return '<div>' +
+    '<div class="slider-head">' +
+      '<span style="font-size:13px;font-weight:600">' + title + '</span>' +
+      '<span class="v" data-sv="' + key + '">' + value + '</span>' +
+    '</div>' +
+    '<input type="range" min="0" max="100" step="1" value="' + value + '" data-range="' + key + '" />' +
+    '<div class="range-ticks">' + ticks.map(t => '<span>' + t + '</span>').join('') + '</div>' +
+  '</div>';
+}
+
+function selectRow(key, title, value, options) {
+  return '<div>' +
+    '<label class="lbl">' + title + '</label>' +
+    '<select class="field" data-sel="' + key + '">' +
+      options.map(o => '<option value="' + o[0] + '" ' + (o[0] === value ? 'selected' : '') + '>' + o[1] + '</option>').join('') +
+    '</select>' +
+  '</div>';
+}
+
+/** 스타일 탭 이벤트 : 모두 즉시 상태 반영 + 저장 + 미리보기 갱신 */
+function bindStyleEvents(root) {
+  // 체크박스(말투)
+  root.querySelectorAll('[data-tone]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.tone;
+      const tones = S().style.tones;
+      const i = tones.indexOf(id);
+      if (i >= 0) tones.splice(i, 1); else tones.push(id);
+      btn.classList.toggle('on', i < 0);
+      $('#tone-cnt', root).textContent = tones.length + '개 선택';
+      Store.save(); renderStylePreview(); haptic(8);
+    });
+  });
+
+  // 스위치
+  root.querySelectorAll('[data-sw]').forEach(sw => {
+    sw.addEventListener('click', () => {
+      const key = sw.dataset.sw;
+      S().style[key] = !S().style[key];
+      sw.classList.toggle('on', S().style[key]);
+      Store.save(); renderStylePreview(); haptic(10);
+    });
+  });
+
+  // 슬라이더
+  root.querySelectorAll('[data-range]').forEach(range => {
+    range.addEventListener('input', () => {
+      const key = range.dataset.range;
+      S().style[key] = Number(range.value);
+      const label = root.querySelector('[data-sv="' + key + '"]');
+      if (label) label.textContent = range.value;
+      Store.save(); renderStylePreview();
+    });
+  });
+
+  // 드롭다운
+  root.querySelectorAll('[data-sel]').forEach(sel => {
+    sel.addEventListener('change', () => {
+      S().style[sel.dataset.sel] = sel.value;
+      Store.save(); renderStylePreview(); haptic(8);
+    });
+  });
+}
+
+/** 선택값을 문장으로 요약 */
+function renderStylePreview() {
+  const box = $('#style-preview');
+  if (!box) return;
+  const s = S().style;
+
+  const toneText = s.tones.length
+    ? s.tones.map(id => (TONE_OPTIONS.find(t => t.id === id) || {}).label).filter(Boolean).join(', ')
+    : '기본';
+  const lengthText = { short:'짧게', normal:'보통', long:'길게' }[s.length];
+  const personText = { first:'1인칭', third:'3인칭' }[s.person];
+  const langText   = { ko:'한국어', en:'English', ja:'日本語' }[s.language];
+
+  const flags = [];
+  if (s.emoji)     flags.push('이모지');
+  if (s.narration) flags.push('지문');
+  if (s.banmal)    flags.push('반말');
+  if (s.safeMode)  flags.push('안전 모드');
+
+  box.innerHTML =
+    '<b>' + esc(toneText) + '</b> 말투로, <b>' + personText + '</b> 시점에서 ' +
+    '<b>' + lengthText + '</b> 답변합니다.<br/>' +
+    '창의성 <b>' + s.creativity + '</b> · 기억 <b>' + s.memory + '</b> · 언어 <b>' + langText + '</b><br/>' +
+    (flags.length ? '적용: <b>' + flags.join(' · ') + '</b>' : '추가 옵션 없음');
+}
+
+/* =========================================================================
+   6-5) renderAbout — 소개글 (자동 저장 + 글자수)
+   ========================================================================= */
+function renderAbout(root) {
+  const a = S().about;
+
+  root.innerHTML =
+    '<section class="sec">' +
+      '<div class="sec-t"><h3>플롯 소개</h3><span class="cnt" id="cnt-about"></span></div>' +
+      '<textarea id="in-about" class="field no-bar" rows="9" maxlength="' + CONFIG.ABOUT_MAX + '" ' +
+        'placeholder="다른 사용자에게 보여질 소개글을 적어주세요.&#10;어떤 이야기인지, 무엇을 즐길 수 있는지 짧게 요약하면 좋아요.">' +
+        esc(a.text) + '</textarea>' +
+      '<p class="hint"><i class="fa-solid fa-bolt" style="color:var(--accent);margin-right:4px"></i>' +
+        '입력하는 즉시 자동 저장됩니다.</p>' +
+    '</section>' +
+
+    '<section class="sec">' +
+      '<div class="sec-t"><h3>미리보기</h3></div>' +
+      '<div class="card" style="display:flex;gap:12px;align-items:flex-start">' +
+        (S().prompt.image
+          ? '<img src="' + S().prompt.image + '" alt="" style="width:56px;height:56px;border-radius:14px;object-fit:cover;flex:0 0 auto" />'
+          : '<div style="width:56px;height:56px;border-radius:14px;background:var(--input);display:grid;place-items:center;color:var(--text-dim);flex:0 0 auto">' +
+            '<i class="fa-solid fa-image"></i></div>') +
+        '<div style="flex:1;min-width:0">' +
+          '<div style="font-size:14px;font-weight:700;letter-spacing:-.2px">' +
+            esc(S().prompt.name.trim() || '이름 없음') + '</div>' +
+          '<div id="about-preview" style="font-size:12px;color:var(--text-sub);line-height:1.6;margin-top:5px;white-space:pre-wrap">' +
+            esc(a.text.trim() || '소개글이 아직 없어요.') + '</div>' +
+        '</div>' +
+      '</div>' +
+    '</section>';
+
+  const el = $('#in-about', root);
+  const sync = () => updateCounter($('#cnt-about', root), el.value.length, CONFIG.ABOUT_MAX, '소개');
+
+  el.addEventListener('input', () => {
+    if (el.value.length > CONFIG.ABOUT_MAX) el.value = el.value.slice(0, CONFIG.ABOUT_MAX);
+    S().about.text = el.value;
+    sync();
+    const pv = $('#about-preview', root);
+    if (pv) pv.textContent = el.value.trim() || '소개글이 아직 없어요.';
+    Store.save(); flashSaving();
+  });
+
+  sync();
+}
+
+/* =========================================================================
+   6-6) renderSettings — 테마 / 토글 / 초기화 / JSON 백업
+   ========================================================================= */
+function renderSettings(root) {
+  const st = S().settings;
+  const used = Store.usage();
+  const pct = Math.min(100, Math.round(used / (5 * 1024 * 1024) * 100));
+
+  root.innerHTML =
+    /* --- 테마 --- */
+    '<section class="sec">' +
+      '<div class="sec-t"><h3>테마</h3><span class="cnt">' +
+        (st.theme === 'auto' ? '시스템 설정 따름' : (st.theme === 'dark' ? '다크' : '라이트')) + '</span></div>' +
+      '<div class="seg" id="theme-seg">' +
+        '<button data-theme="dark"  class="' + (st.theme === 'dark'  ? 'on' : '') + '"><i class="fa-solid fa-moon"></i>Dark</button>' +
+        '<button data-theme="light" class="' + (st.theme === 'light' ? 'on' : '') + '"><i class="fa-solid fa-sun"></i>Light</button>' +
+        '<button data-theme="auto"  class="' + (st.theme === 'auto'  ? 'on' : '') + '"><i class="fa-solid fa-circle-half-stroke"></i>Auto</button>' +
+      '</div>' +
+    '</section>' +
+
+    /* --- 일반 --- */
+    '<section class="sec">' +
+      '<div class="sec-t"><h3>일반</h3></div>' +
+      '<div class="card"><div class="opt-list">' +
+        '<div class="opt">' +
+          '<div class="info"><div class="t">자동 저장</div><div class="d">입력하는 즉시 기기에 저장해요</div></div>' +
+          '<div class="sw ' + (st.autosave ? 'on' : '') + '" data-set="autosave"></div>' +
+        '</div>' +
+        '<div class="opt">' +
+          '<div class="info"><div class="t">햅틱 피드백</div><div class="d">버튼을 누를 때 짧게 진동해요</div></div>' +
+          '<div class="sw ' + (st.haptic ? 'on' : '') + '" data-set="haptic"></div>' +
+        '</div>' +
+      '</div></div>' +
+    '</section>' +
+
+    /* --- 데이터 --- */
+    '<section class="sec">' +
+      '<div class="sec-t"><h3>데이터</h3><span class="cnt">' + formatBytes(used) + ' 사용</span></div>' +
+      '<div class="card">' +
+        '<div style="display:flex;flex-direction:column;gap:9px">' +
+          '<button class="btn btn-ghost btn-block" id="btn-export">' +
+            '<i class="fa-solid fa-download"></i>JSON 내보내기</button>' +
+          '<button class="btn btn-ghost btn-block" id="btn-import">' +
+            '<i class="fa-solid fa-upload"></i>JSON 불러오기</button>' +
+          '<button class="btn btn-danger btn-block" id="btn-reset">' +
+            '<i class="fa-solid fa-rotate-left"></i>전체 초기화</button>' +
+        '</div>' +
+        '<div class="meter"><i style="width:' + pct + '%"></i></div>' +
+        '<p class="hint">모든 데이터는 이 브라우저의 localStorage 에만 저장됩니다. ' +
+          '기기를 옮길 때는 JSON 으로 내보내 주세요.</p>' +
+      '</div>' +
+    '</section>' +
+
+    /* --- 요약 --- */
+    '<section class="sec">' +
+      '<div class="sec-t"><h3>작성 현황</h3></div>' +
+      '<div class="card"><div class="opt-list">' +
+        statRow('이름',   S().prompt.name.trim() || '미입력') +
+        statRow('설명',   S().prompt.desc.length + '자') +
+        statRow('인트로', S().intro.messages.length + '개 메시지') +
+        statRow('로어북', S().lore.entries.length + '개 항목') +
+        statRow('소개',   S().about.text.length + '자') +
+      '</div></div>' +
+    '</section>' +
+
+    '<p class="hint" style="text-align:center;margin-top:6px">ZETA Plot Editor · v1.0</p>';
+
+  /* ----- 이벤트 ----- */
+  root.querySelectorAll('[data-theme]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      S().settings.theme = btn.dataset.theme;
+      Store.save(true); applyTheme(); renderSettings(root); haptic(10);
+      toast('테마를 변경했어요');
+    });
+  });
+
+  root.querySelectorAll('[data-set]').forEach(sw => {
+    sw.addEventListener('click', () => {
+      const key = sw.dataset.set;
+      S().settings[key] = !S().settings[key];
+      sw.classList.toggle('on', S().settings[key]);
+      Store.save(true); haptic(10);
+      if (key === 'autosave') toast(S().settings.autosave ? '자동 저장을 켰어요' : '자동 저장을 껐어요', 'info');
+    });
+  });
+
+  $('#btn-export', root).addEventListener('click', exportJSON);
+  $('#btn-import', root).addEventListener('click', () => $('#file-json').click());
+  $('#btn-reset',  root).addEventListener('click', () => {
+    confirmDialog('전체 초기화할까요?',
+      '프롬프트, 인트로, 로어북, 스타일, 소개 등 모든 데이터가 삭제됩니다.',
+      () => {
+        Store.reset(); applyTheme(); renderTabs(); renderView();
+        toast('모든 데이터를 초기화했어요');
+      }, true);
+  });
+}
+
+/** 설정 요약 행 */
+function statRow(label, value) {
+  return '<div class="opt">' +
+    '<div class="info"><div class="t" style="font-size:13px;font-weight:600">' + esc(label) + '</div></div>' +
+    '<div style="font-size:12.5px;color:var(--text-sub);font-weight:600">' + esc(value) + '</div>' +
+  '</div>';
+}
+
+/* ---------- JSON 내보내기 / 불러오기 ---------- */
+function exportJSON() {
+  try {
+    const data = JSON.stringify(S(), null, 2);
+    const blob = new Blob([data], { type: 'application/json' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    const name = (S().prompt.name.trim() || 'zeta-plot').replace(/[^\w가-힣-]/g, '_');
+    const d    = new Date();
+    const stamp = d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0');
+
+    a.href = url;
+    a.download = name + '_' + stamp + '.json';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 800);
+    toast('JSON 파일을 내보냈어요');
+  } catch (e) {
+    toast('내보내기에 실패했어요', 'err');
+  }
+}
+
+function importJSON(file) {
+  const reader = new FileReader();
+  reader.onload = ev => {
+    let parsed;
+    try { parsed = JSON.parse(ev.target.result); }
+    catch (e) { toast('올바른 JSON 파일이 아니에요', 'err'); return; }
+
+    if (!parsed || typeof parsed !== 'object') { toast('데이터 형식이 올바르지 않아요', 'err'); return; }
+
+    const msgs  = parsed.intro && Array.isArray(parsed.intro.messages) ? parsed.intro.messages.length : 0;
+    const lores = parsed.lore  && Array.isArray(parsed.lore.entries)   ? parsed.lore.entries.length   : 0;
+
+    confirmDialog('데이터를 불러올까요?',
+      '현재 작성 중인 내용이 파일의 데이터로 교체됩니다.\n' +
+      '(메시지 ' + msgs + '개 · 로어북 ' + lores + '개)',
+      () => {
+        Store.replace(parsed);
+        applyTheme(); renderTabs(); renderView();
+        toast('데이터를 불러왔어요');
+      });
+  };
+  reader.onerror = () => toast('파일을 읽지 못했어요', 'err');
+  reader.readAsText(file);
+}
+
+/* =========================================================================
+   8) Composer — 인트로 하단 입력창
+   ========================================================================= */
+let editingId = null;   // 수정 중인 메시지 id (없으면 null)
+
+/** 화자 토글 / 초안 등 composer 상태를 화면에 동기화 */
+function syncComposer() {
+  const input = $('#comp-input');
+  const send  = $('#btn-send');
+
+  // 화자 버튼
+  $$('#spk button').forEach(b => b.classList.toggle('on', b.dataset.spk === S().ui.speaker));
+
+  // 초안 복원
+  if (input.value !== S().ui.draft) input.value = S().ui.draft || '';
+  autoGrow(input, 132);
+  input.placeholder = S().ui.speaker === 'user' ? '유저의 대사를 입력하세요' : '상황을 서술해 주세요';
+  send.classList.toggle('on', input.value.trim().length > 0);
+}
+
+/** 수정 모드 시작 */
+function startEditMessage(id) {
+  const m = S().intro.messages.find(x => x.id === id);
+  if (!m) return;
+
+  editingId = id;
+  S().ui.speaker = m.speaker;
+  const input = $('#comp-input');
+  input.value = m.text;
+  S().ui.draft = m.text;
+
+  $('#edit-bar-slot').innerHTML =
+    '<div class="edit-bar">' +
+      '<i class="fa-solid fa-pen"></i>' +
+      '<span class="txt">메시지 수정 중</span>' +
+      '<button class="ibtn" id="edit-cancel" style="color:var(--accent)"><i class="fa-solid fa-xmark"></i></button>' +
+    '</div>';
+  $('#edit-cancel').addEventListener('click', cancelEditMessage);
+
+  syncComposer();
+  input.focus();
+  input.setSelectionRange(input.value.length, input.value.length);
+}
+
+/** 수정 모드 종료 */
+function cancelEditMessage() {
+  editingId = null;
+  $('#edit-bar-slot').innerHTML = '';
+  const input = $('#comp-input');
+  input.value = '';
+  S().ui.draft = '';
+  Store.save();
+  syncComposer();
+}
+
+/** 전송(또는 수정 확정) */
+function submitComposer() {
+  const input = $('#comp-input');
+  const text = input.value.trim();
+  if (!text) return;
+
+  if (editingId) {
+    updateMessage(editingId, text);
+    cancelEditMessage();
+  } else {
+    addMessage(text, S().ui.speaker);
+    input.value = '';
+    S().ui.draft = '';
+    Store.save();
+    syncComposer();
+  }
+  input.focus();
+}
+
+/** composer 이벤트 (앱 시작 시 1회만 바인딩) */
+function bindComposer() {
+  const input = $('#comp-input');
+  const send  = $('#btn-send');
+
+  input.addEventListener('input', () => {
+    S().ui.draft = input.value;
+    autoGrow(input, 132);
+    send.classList.toggle('on', input.value.trim().length > 0);
+    Store.save();
+  });
+
+  // Enter 전송 / Shift+Enter 줄바꿈 (IME 조합 중에는 무시)
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+      e.preventDefault();
+      submitComposer();
+    }
+    if (e.key === 'Escape' && editingId) cancelEditMessage();
+  });
+
+  send.addEventListener('click', submitComposer);
+
+  // 화자 토글
+  $$('#spk button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      S().ui.speaker = btn.dataset.spk;
+      Store.save(); syncComposer(); haptic(8);
+    });
+  });
+}
+
+/* =========================================================================
+   헤더 : 저장 표시 / 전역 메뉴
+   ========================================================================= */
+let flashTimer = null;
+/** 입력 중일 때 헤더 pill 을 "저장 중" → "저장됨" 으로 잠깐 바꾼다 */
+function flashSaving() {
+  const pill = $('#save-pill');
+  pill.classList.add('on');
+  pill.querySelector('span').textContent = '저장 중';
+  clearTimeout(flashTimer);
+  flashTimer = setTimeout(() => {
+    pill.querySelector('span').textContent = S().settings.autosave ? '저장됨' : '수동 저장';
+    pill.classList.remove('on');
+  }, 700);
+}
+
+function bindHeader() {
+  $('#btn-back').addEventListener('click', () => {
+    const idx = TABS.findIndex(t => t.id === S().ui.tab);
+    if (idx > 0) switchTab(TABS[idx - 1].id);
+    else toast('첫 번째 탭이에요', 'info');
+  });
+
+  $('#btn-menu').addEventListener('click', () => {
+    openSheet('플롯 관리', [
+      { label:'지금 저장', icon:'fa-solid fa-floppy-disk', onClick:() => {
+          Store.save(true); toast('저장했어요');
+        }
+      },
+      { label:'JSON 내보내기', icon:'fa-solid fa-download', onClick: exportJSON },
+      { label:'JSON 불러오기', icon:'fa-solid fa-upload',   onClick:() => $('#file-json').click() },
+      { label:'설정 열기', icon:'fa-solid fa-gear', onClick:() => switchTab('settings') },
+      { label:'전체 초기화', icon:'fa-solid fa-rotate-left', danger:true, onClick:() => {
+          confirmDialog('전체 초기화할까요?', '모든 데이터가 삭제됩니다.', () => {
+            Store.reset(); applyTheme(); renderTabs(); renderView();
+            toast('초기화했어요');
+          }, true);
+        }
+      }
+    ]);
+  });
+}
+
+/* =========================================================================
+   9) Boot — 초기화
+   ========================================================================= */
+function boot() {
+  Store.load();
+  applyTheme();
+
+  // 저장 결과를 헤더에 반영
+  Store.onSaved = ok => { if (!ok) toast('저장 공간이 부족해요', 'err'); };
+
+  // 헤더 타이틀
+  $('#hd-title').textContent = S().prompt.name.trim() || '플롯 만들기';
+  $('#save-pill').querySelector('span').textContent = S().settings.autosave ? '저장됨' : '수동 저장';
+
+  bindHeader();
+  bindComposer();
+
+  // 파일 입력 핸들러
+  $('#file-image').addEventListener('change', e => {
+    const f = e.target.files && e.target.files[0];
+    if (f) handleImageFile(f);
+    e.target.value = '';           // 같은 파일 다시 선택 가능하도록 초기화
+  });
+  $('#file-json').addEventListener('change', e => {
+    const f = e.target.files && e.target.files[0];
+    if (f) importJSON(f);
+    e.target.value = '';
+  });
+
+  // 백드롭 클릭 → 열려 있는 오버레이 닫기
+  $('#backdrop').addEventListener('click', () => { if (backdropHandler) backdropHandler(); });
+
+  // 본문 스크롤 위치 저장(패시브)
+  let scrollTimer = null;
+  $('#view').addEventListener('scroll', () => {
+    clearTimeout(scrollTimer);
+    scrollTimer = setTimeout(() => {
+      S().ui.scroll[S().ui.tab] = $('#view').scrollTop;
+      Store.save();
+    }, 180);
+  }, { passive: true });
+
+  // 페이지를 떠나기 전 마지막 저장
+  window.addEventListener('beforeunload', () => {
+    S().ui.scroll[S().ui.tab] = $('#view').scrollTop;
+    Store.save(true);
+  });
+
+  // 다른 탭(창)에서 값이 바뀌면 동기화
+  window.addEventListener('storage', e => {
+    if (e.key === CONFIG.STORAGE_KEY) {
+      Store.load(); applyTheme(); renderTabs(); renderView();
+    }
+  });
+
+  renderTabs();
+  renderView();
+}
+
+document.addEventListener('DOMContentLoaded', boot);
+</script>
+</body>
+</html>
