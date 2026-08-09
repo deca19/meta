@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ZETA 주제 기회 분석기</title>
+<link rel="stylesheet" as="style" crossorigin
+      href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
+<style>
+/* =============================================================================
+   ZETA Theme Opportunity Analyzer — 대시보드
+   엔진(zeta-analyzer.js)은 계산만, 이 파일은 표현만 담당한다.
+   ============================================================================= */
+:root {
+  --bg:#0b0b0d; --panel:#141417; --panel2:#1b1b1f; --line:#26262c;
+  --text:#f2f2f4; --sub:#9b9ba4; --dim:#6c6c76;
+  --accent:#7c5cff; --accent-soft:rgba(124,92,255,.15);
+  --good:#35d07f; --warn:#f5a524; --bad:#ff5a5f;
+  --good-soft:rgba(53,208,127,.14); --warn-soft:rgba(245,165,36,.14); --bad-soft:rgba(255,90,95,.14);
+}
+* { box-sizing:border-box; }
+body {
+  margin:0; background:var(--bg); color:var(--text);
+  font-family:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased; line-height:1.55;
+}
+.wrap { max-width:1140px; margin:0 auto; padding:32px 20px 80px; }
+
+/* ---------- 헤더 ---------- */
+header { margin-bottom:24px; }
+h1 { font-size:23px; font-weight:800; letter-spacing:-.5px; margin:0 0 6px; }
+.lede { font-size:13.5px; color:var(--sub); margin:0; }
+.disclaimer {
+  margin-top:14px; padding:12px 14px; border-radius:11px;
+  background:var(--warn-soft); border:1px solid rgba(245,165,36,.28);
+  font-size:12.5px; color:#ffd89b; line-height:1.65;
+}
+.disclaimer b { color:#ffc46b; }
+
+/* ---------- 컨트롤 ---------- */
+.controls {
+  display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:14px;
+  background:var(--panel); border:1px solid var(--line); border-radius:14px;
+  padding:16px; margin-bottom:20px;
+}
+.ctl label { display:block; font-size:11px; font-weight:700; color:var(--sub); margin-bottom:7px; }
+.ctl input[type=file], .ctl select, .ctl input[type=number] {
+  width:100%; background:var(--panel2); border:1px solid var(--line); color:var(--text);
+  border-radius:9px; padding:9px 10px; font-size:12.5px; font-family:inherit;
+}
+.ctl input[type=range] { width:100%; accent-color:var(--accent); }
+.ctl .val { float:right; color:var(--accent); font-weight:700; font-variant-numeric:tabular-nums; }
+.btnrow { display:flex; gap:9px; flex-wrap:wrap; margin-bottom:22px; }
+button {
+  background:var(--accent); color:#fff; border:none; border-radius:10px;
+  padding:10px 16px; font-size:13px; font-weight:700; font-family:inherit; cursor:pointer;
+  transition:filter .18s ease, transform .12s ease;
+}
+button:hover { filter:brightness(1.1); }
+button:active { transform:scale(.97); }
+button.ghost { background:var(--panel2); color:var(--text); border:1px solid var(--line); }
+
+/* ---------- 요약 타일 ---------- */
+.tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:12px; margin-bottom:22px; }
+.tile { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px; }
+.tile .k { font-size:10.5px; color:var(--dim); font-weight:700; letter-spacing:.3px; }
+.tile .v { font-size:21px; font-weight:800; margin-top:5px; font-variant-numeric:tabular-nums; letter-spacing:-.5px; }
+.tile .s { font-size:11px; color:var(--sub); margin-top:2px; }
+
+/* ---------- 섹션 ---------- */
+section { margin-bottom:30px; }
+h2 { font-size:15px; font-weight:800; letter-spacing:-.3px; margin:0 0 4px; }
+.sub { font-size:12px; color:var(--dim); margin:0 0 13px; line-height:1.6; }
+
+/* ---------- 추천 카드 ---------- */
+.cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(330px,1fr)); gap:13px; }
+.card {
+  background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:16px;
+  transition:border-color .2s ease, transform .16s ease;
+}
+.card:hover { border-color:var(--accent); transform:translateY(-2px); }
+.card .top { display:flex; align-items:flex-start; gap:12px; margin-bottom:10px; }
+.card .score {
+  flex:0 0 auto; width:50px; height:50px; border-radius:13px;
+  display:grid; place-items:center; font-size:17px; font-weight:800;
+  background:var(--accent-soft); color:var(--accent); font-variant-numeric:tabular-nums;
+}
+.card .ttl { flex:1; min-width:0; }
+.card .ttl .nm { font-size:14.5px; font-weight:800; letter-spacing:-.3px; }
+.card .ttl .lg { font-size:12px; color:var(--sub); margin-top:4px; line-height:1.55; }
+.tag {
+  display:inline-block; padding:3px 8px; border-radius:6px;
+  font-size:10px; font-weight:700; margin-right:5px; margin-top:6px;
+}
+.tag.validated { background:var(--good-soft); color:var(--good); }
+.tag.hypothesis { background:var(--warn-soft); color:var(--warn); }
+
+/* 지표 바 */
+.bars { margin-top:12px; display:flex; flex-direction:column; gap:6px; }
+.bar { display:flex; align-items:center; gap:9px; font-size:10.5px; }
+.bar .lb { width:62px; color:var(--dim); flex:0 0 auto; }
+.bar .tr { flex:1; height:5px; background:var(--panel2); border-radius:99px; overflow:hidden; }
+.bar .fl { height:100%; background:var(--accent); border-radius:99px; transition:width .5s cubic-bezier(.2,.8,.3,1); }
+.bar .pv { width:30px; text-align:right; color:var(--sub); font-variant-numeric:tabular-nums; flex:0 0 auto; }
+
+.evd {
+  margin-top:11px; padding-top:11px; border-top:1px solid var(--line);
+  font-size:11px; color:var(--sub); display:flex; flex-wrap:wrap; gap:4px 12px;
+}
+.evd b { color:var(--text); font-weight:700; font-variant-numeric:tabular-nums; }
+.risks { margin-top:9px; display:flex; flex-wrap:wrap; gap:5px; }
+.risk {
+  font-size:10px; font-weight:700; padding:3px 8px; border-radius:6px;
+  background:var(--bad-soft); color:var(--bad);
+}
+
+/* ---------- 테이블 ---------- */
+.tblwrap { overflow-x:auto; border:1px solid var(--line); border-radius:12px; background:var(--panel); }
+table { width:100%; border-collapse:collapse; font-size:12.5px; min-width:640px; }
+th, td { padding:10px 13px; text-align:left; border-bottom:1px solid var(--line); white-space:nowrap; }
+th { font-size:10.5px; font-weight:700; color:var(--dim); background:var(--panel2); letter-spacing:.3px; }
+tbody tr:last-child td { border-bottom:none; }
+tbody tr:hover { background:var(--panel2); }
+td.num { text-align:right; font-variant-numeric:tabular-nums; }
+.pill {
+  display:inline-block; min-width:44px; text-align:center;
+  padding:2px 8px; border-radius:6px; font-size:11px; font-weight:700;
+  font-variant-numeric:tabular-nums;
+}
+.pill.hi { background:var(--good-soft); color:var(--good); }
+.pill.mid { background:var(--panel2); color:var(--sub); }
+.pill.lo { background:var(--bad-soft); color:var(--bad); }
+.mini { font-size:10px; color:var(--dim); }
+
+/* 축 탭 */
+.axistabs { display:flex; gap:6px; margin-bottom:11px; flex-wrap:wrap; }
+.axistab {
+  padding:7px 13px; border-radius:99px; font-size:12px; font-weight:700;
+  background:var(--panel); border:1px solid var(--line); color:var(--dim); cursor:pointer;
+  transition:all .18s ease;
+}
+.axistab:hover { color:var(--text); }
+.axistab.on { background:var(--accent); border-color:var(--accent); color:#fff; }
+
+/* 경고 */
+.warn-box {
+  background:var(--bad-soft); border:1px solid rgba(255,90,95,.28);
+  border-radius:11px; padding:13px 15px; font-size:12px; color:#ffb3b5; line-height:1.7;
+}
+.warn-box ul { margin:0; padding-left:17px; }
+.warn-box li + li { margin-top:5px; }
+
+.chips { display:flex; flex-wrap:wrap; gap:6px; }
+.chip {
+  font-size:11px; padding:4px 9px; border-radius:7px;
+  background:var(--panel2); border:1px solid var(--line); color:var(--sub);
+}
+footer { margin-top:44px; padding-top:18px; border-top:1px solid var(--line); font-size:11.5px; color:var(--dim); line-height:1.8; }
+code { background:var(--panel2); padding:1.5px 5px; border-radius:4px; font-size:11px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>ZETA 주제 기회 분석기</h1>
+    <p class="lede">작품 카탈로그의 공급·수요 불균형을 계산해 다음에 만들 주제를 추천합니다.</p>
+    <div class="disclaimer">
+      <b>지금 보이는 숫자는 합성 샘플입니다.</b> ZETA의 실제 카탈로그가 아니라 엔진 동작 확인용으로
+      생성한 가짜 시장입니다. 실제 분석을 하려면 직접 수집한 CSV/JSON을 아래에서 불러오세요.
+      결론의 신뢰도는 전적으로 입력 데이터의 수집 방식에 달려 있습니다.
+    </div>
+  </header>
+
+  <!-- ---------- 컨트롤 ---------- -->
+  <div class="controls">
+    <div class="ctl">
+      <label>데이터 불러오기 (CSV / JSON)</label>
+      <input type="file" id="file" accept=".csv,.json,application/json,text/csv" />
+    </div>
+    <div class="ctl">
+      <label>수집 방식</label>
+      <select id="sampling">
+        <option value="census">전수 수집 (모든 작품)</option>
+        <option value="ranked">인기순 상위만 (생존편향 보정)</option>
+      </select>
+    </div>
+    <div class="ctl">
+      <label>최소 표본 수 <span class="val" id="v-min">5</span></label>
+      <input type="range" id="minSupport" min="1" max="20" value="5" />
+    </div>
+    <div class="ctl">
+      <label>축소 강도 k <span class="val" id="v-k">8</span></label>
+      <input type="range" id="prior" min="0" max="30" value="8" />
+    </div>
+    <div class="ctl">
+      <label>수요/공급 gap 가중 <span class="val" id="v-gap">0.30</span></label>
+      <input type="range" id="w-gap" min="0" max="100" value="30" />
+    </div>
+    <div class="ctl">
+      <label>신작 성과 가중 <span class="val" id="v-mom">0.22</span></label>
+      <input type="range" id="w-momentum" min="0" max="100" value="22" />
+    </div>
+    <div class="ctl">
+      <label>비독점도 가중 <span class="val" id="v-open">0.16</span></label>
+      <input type="range" id="w-openness" min="0" max="100" value="16" />
+    </div>
+    <div class="ctl">
+      <label>신인 성공률 가중 <span class="val" id="v-new">0.12</span></label>
+      <input type="range" id="w-newcomer" min="0" max="100" value="12" />
+    </div>
+  </div>
+
+  <div class="btnrow">
+    <button id="btn-run">다시 분석</button>
+    <button class="ghost" id="btn-sample">샘플 데이터 재생성</button>
+    <button class="ghost" id="btn-csv">CSV 서식 내려받기</button>
+    <button class="ghost" id="btn-json">분석 결과 JSON</button>
+  </div>
+
+  <div id="app"></div>
+
+  <footer>
+    엔진 <code>zeta-analyzer.js</code> · 검증 <code>node analyzer/analyzer.test.js</code><br />
+    입력 스키마: <code>id, title, tags[], createdAt, chats, likes, creatorFollowers</code> —
+    CSV는 tags를 <code>|</code> 로 구분합니다.
+  </footer>
+</div>
+
+<script src="zeta-analyzer.js"></script>
+<script src="sample-works.js"></script>
+<script>
+"use strict";
+/* =============================================================================
+   대시보드 로직
+   ============================================================================= */
+var state = {
+  works: null,        // 현재 분석 대상 작품 배열
+  report: null,       // 최근 분석 결과
+  sourceLabel: '합성 샘플',
+  activeAxis: 'genre',
+  seed: 20260809
+};
+
+var $ = function (s) { return document.querySelector(s); };
+
+/* ---------- 옵션 수집 ---------- */
+function readOptions() {
+  var g = function (id) { return Number($('#' + id).value); };
+  return {
+    sampling: $('#sampling').value,
+    minSupport: g('minSupport'),
+    priorStrength: g('prior'),
+    weights: {
+      gap:       g('w-gap') / 100,
+      momentum:  g('w-momentum') / 100,
+      openness:  g('w-openness') / 100,
+      newcomer:  g('w-newcomer') / 100,
+      quality:   0.10,
+      staleness: 0.10
+    }
+  };
+}
+
+/* ---------- 실행 ---------- */
+function run() {
+  if (!state.works) state.works = ZetaSample.generate(200, state.seed);
+  var opt = readOptions();
+  state.report = ZetaAnalyzer.analyze(state.works, opt);
+  syncLabels();
+  render();
+}
+
+function syncLabels() {
+  $('#v-min').textContent  = $('#minSupport').value;
+  $('#v-k').textContent    = $('#prior').value;
+  $('#v-gap').textContent  = (Number($('#w-gap').value) / 100).toFixed(2);
+  $('#v-mom').textContent  = (Number($('#w-momentum').value) / 100).toFixed(2);
+  $('#v-open').textContent = (Number($('#w-openness').value) / 100).toFixed(2);
+  $('#v-new').textContent  = (Number($('#w-newcomer').value) / 100).toFixed(2);
+}
+
+/* ---------- 렌더 ---------- */
+function esc(s) {
+  return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function render() {
+  var r = state.report;
+  if (!r || r.error) {
+    $('#app').innerHTML = '<div class="warn-box">' + esc(r ? r.error : '데이터 없음') + '</div>';
+    return;
+  }
+  $('#app').innerHTML =
+    renderTiles(r) + renderWarnings(r) + renderRecommendations(r) +
+    renderAxis(r) + renderSaturated(r) + renderWhitespace(r) + renderUnmapped(r);
+  bindAxisTabs();
+}
+
+/* 요약 타일 */
+function renderTiles(r) {
+  var m = r.meta;
+  return '<div class="tiles">' +
+    tile('분석 작품', m.count.toLocaleString() + '개', state.sourceLabel) +
+    tile('최근 90일 신작', m.recentCount + '개', (m.count ? Math.round(m.recentCount / m.count * 100) : 0) + '% 비중') +
+    tile('누적 대화', (m.totalChats / 10000).toFixed(1) + '만', '수요 총량') +
+    tile('추천 주제', r.recommendations.length + '건', '검증 + 가설') +
+    tile('레드오션', r.saturated.length + '건', '회피 권장') +
+  '</div>';
+}
+function tile(k, v, s) {
+  return '<div class="tile"><div class="k">' + esc(k) + '</div>' +
+         '<div class="v">' + esc(v) + '</div><div class="s">' + esc(s) + '</div></div>';
+}
+
+/* 경고 */
+function renderWarnings(r) {
+  if (!r.warnings.length) return '';
+  return '<section><h2>해석 시 주의</h2><div class="warn-box"><ul>' +
+    r.warnings.map(function (w) { return '<li>' + esc(w) + '</li>'; }).join('') +
+    '</ul></div></section>';
+}
+
+/* 추천 카드 */
+function renderRecommendations(r) {
+  if (!r.recommendations.length) {
+    return '<section><h2>추천 주제</h2><div class="warn-box">' +
+      '조건을 만족하는 조합이 없습니다. 최소 표본 수를 낮추거나 데이터를 더 모아보세요.</div></section>';
+  }
+  var cards = r.recommendations.map(function (x) {
+    var e = x.evidence;
+    var bars = x.percentiles ? renderBars(x.percentiles) : '';
+    var evd = e.gap !== undefined
+      ? '<span>작품 <b>' + e.works + '</b>개</span>' +
+        '<span>공급 <b>' + e.supplyShare + '%</b></span>' +
+        '<span>수요 <b>' + e.demandShare + '%</b></span>' +
+        '<span>gap <b>' + e.gap + '</b></span>' +
+        '<span>신작성과 <b>' + e.momentum + '</b></span>'
+      : '<span>기존 작품 <b>' + e.works + '</b>개</span>' +
+        '<span>기대 <b>' + e.expected + '</b>건</span>' +
+        '<span>lift <b>' + e.lift + '</b></span>';
+
+    return '<div class="card">' +
+      '<div class="top">' +
+        '<div class="score">' + Math.round(x.score) + '</div>' +
+        '<div class="ttl">' +
+          '<div class="nm">' + esc(x.label) + '</div>' +
+          '<div class="lg">' + esc(x.logline) + '</div>' +
+          '<span class="tag ' + x.confidence + '">' +
+            (x.confidence === 'validated' ? '데이터 검증됨' : '가설 · 표본 없음') + '</span>' +
+        '</div>' +
+      '</div>' + bars +
+      '<div class="evd">' + evd + '</div>' +
+      (x.risks.length ? '<div class="risks">' + x.risks.map(function (v) {
+        return '<span class="risk">' + esc(v.label) + '</span>'; }).join('') + '</div>' : '') +
+    '</div>';
+  }).join('');
+
+  return '<section><h2>추천 주제</h2>' +
+    '<p class="sub">기회점수 = 수요/공급 불균형 · 신작 성과 · 비독점도 · 신인 성공률 · 만족도 · 노후도의 백분위 가중합. ' +
+    '"가설" 은 표본이 없어 검증되지 않은 조합입니다.</p>' +
+    '<div class="cards">' + cards + '</div></section>';
+}
+
+var BAR_LABELS = { gap:'수요/공급', momentum:'신작 성과', openness:'비독점도',
+                   newcomer:'신인 성공', quality:'만족도', staleness:'노후도' };
+
+function renderBars(p) {
+  return '<div class="bars">' + Object.keys(BAR_LABELS).map(function (k) {
+    var v = Math.round((p[k] || 0) * 100);
+    return '<div class="bar">' +
+      '<span class="lb">' + BAR_LABELS[k] + '</span>' +
+      '<span class="tr"><span class="fl" style="width:' + v + '%"></span></span>' +
+      '<span class="pv">' + v + '</span></div>';
+  }).join('') + '</div>';
+}
+
+/* 축별 지형 */
+function renderAxis(r) {
+  var tabs = ZetaAnalyzer.AXIS_KEYS.map(function (a) {
+    return '<button class="axistab ' + (a === state.activeAxis ? 'on' : '') + '" data-axis="' + a + '">' +
+      esc(ZetaAnalyzer.TAXONOMY[a].label) + '</button>';
+  }).join('');
+
+  var cells = r.axisCells[state.activeAxis] || [];
+  var rows = cells.map(function (c) {
+    return '<tr>' +
+      '<td><b>' + esc(c.value) + '</b>' + (c.provisional ? ' <span class="mini">잠정</span>' : '') + '</td>' +
+      '<td class="num"><span class="pill ' + tone(c.score, 60, 40) + '">' + Math.round(c.score) + '</span></td>' +
+      '<td class="num">' + c.stats.count + '</td>' +
+      '<td class="num">' + (c.supplyShare * 100).toFixed(1) + '%</td>' +
+      '<td class="num">' + (c.demandShare * 100).toFixed(1) + '%</td>' +
+      '<td class="num"><span class="pill ' + tone(c.gap, 1.1, 0.95) + '">' + c.gap.toFixed(2) + '</span></td>' +
+      '<td class="num">' + c.momentum.toFixed(2) + '</td>' +
+      '<td class="num">' + c.supplyRush.toFixed(2) + '</td>' +
+      '<td>' + (c.risks.length
+        ? c.risks.map(function (x) { return '<span class="risk">' + esc(x.code) + '</span>'; }).join(' ')
+        : '<span class="mini">—</span>') + '</td>' +
+    '</tr>';
+  }).join('');
+
+  return '<section><h2>축별 시장 지형</h2>' +
+    '<p class="sub">gap 1.0 = 공급 비중과 실수요가 균형. 1.0 초과면 수요가 공급을 앞선 구간, 미만이면 과공급입니다. ' +
+    '유입은 최근 신작이 이 구간으로 몰리는 정도(1.0 초과 = 경쟁 증가 중).</p>' +
+    '<div class="axistabs">' + tabs + '</div>' +
+    '<div class="tblwrap"><table><thead><tr>' +
+      '<th>값</th><th>기회점수</th><th>작품수</th><th>공급</th><th>수요</th>' +
+      '<th>gap</th><th>신작성과</th><th>유입</th><th>리스크</th>' +
+    '</tr></thead><tbody>' + rows + '</tbody></table></div></section>';
+}
+
+function tone(v, hi, lo) { return v >= hi ? 'hi' : (v <= lo ? 'lo' : 'mid'); }
+
+/* 레드오션 */
+function renderSaturated(r) {
+  if (!r.saturated.length) return '';
+  var rows = r.saturated.map(function (c) {
+    return '<tr>' +
+      '<td><b>' + esc(c.label) + '</b></td>' +
+      '<td class="num">' + c.stats.count + '</td>' +
+      '<td class="num">' + (c.supplyShare * 100).toFixed(1) + '%</td>' +
+      '<td class="num">' + (c.demandShare * 100).toFixed(1) + '%</td>' +
+      '<td class="num"><span class="pill lo">' + c.gap.toFixed(2) + '</span></td>' +
+      '<td class="num">' + c.stats.hhi.toFixed(2) + '</td>' +
+    '</tr>';
+  }).join('');
+  return '<section><h2>레드오션 — 피할 구간</h2>' +
+    '<p class="sub">공급 비중은 중앙값 이상인데 기회점수는 하위 25%인 조합입니다. ' +
+    '이미 만들어진 작품이 많고 그만큼의 수요가 따라오지 않습니다.</p>' +
+    '<div class="tblwrap"><table><thead><tr>' +
+    '<th>조합</th><th>작품수</th><th>공급</th><th>수요</th><th>gap</th><th>집중도</th>' +
+    '</tr></thead><tbody>' + rows + '</tbody></table></div></section>';
+}
+
+/* 미개척 */
+function renderWhitespace(r) {
+  if (!r.whitespace.length) return '';
+  var rows = r.whitespace.slice(0, 12).map(function (c) {
+    return '<tr>' +
+      '<td><b>' + esc(c.label) + '</b></td>' +
+      '<td class="num">' + Math.round(c.score) + '</td>' +
+      '<td class="num">' + c.observed + '</td>' +
+      '<td class="num">' + c.expected + '</td>' +
+      '<td class="num">' + c.lift.toFixed(2) + '</td>' +
+      '<td class="mini">' + esc(c.parents.map(function (p) {
+        return p.value + ' ' + Math.round(p.score); }).join(' · ')) + '</td>' +
+    '</tr>';
+  }).join('');
+  return '<section><h2>미개척 조합 (가설)</h2>' +
+    '<p class="sub">두 축 각각은 성과가 좋은데 조합으로는 거의 만들어지지 않은 구간입니다. ' +
+    'lift = 관측/기대 이며 1보다 크게 낮을수록 비어 있습니다. ' +
+    '<b>표본이 없어 검증되지 않았습니다</b> — 수요가 없어서 비어 있을 가능성도 같이 고려하세요.</p>' +
+    '<div class="tblwrap"><table><thead><tr>' +
+    '<th>조합</th><th>점수</th><th>관측</th><th>기대</th><th>lift</th><th>각 축 점수</th>' +
+    '</tr></thead><tbody>' + rows + '</tbody></table></div></section>';
+}
+
+/* 미분류 태그 */
+function renderUnmapped(r) {
+  if (!r.unmappedTags.length) return '';
+  return '<section><h2>사전 미등록 태그</h2>' +
+    '<p class="sub">어떤 축에도 매핑되지 않은 태그입니다. ' +
+    '<code>zeta-analyzer.js</code> 의 TAXONOMY 에 추가하면 분류 정확도가 올라갑니다.</p>' +
+    '<div class="chips">' + r.unmappedTags.map(function (t) {
+      return '<span class="chip">' + esc(t.tag) + ' <b>' + t.count + '</b></span>'; }).join('') +
+    '</div></section>';
+}
+
+/* ---------- 이벤트 ---------- */
+function bindAxisTabs() {
+  document.querySelectorAll('[data-axis]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      state.activeAxis = b.dataset.axis;
+      render();
+    });
+  });
+}
+
+document.querySelectorAll('.controls input, .controls select').forEach(function (el) {
+  if (el.type === 'file') return;
+  el.addEventListener('input', function () { syncLabels(); run(); });
+});
+
+$('#btn-run').addEventListener('click', run);
+
+$('#btn-sample').addEventListener('click', function () {
+  state.seed = Math.floor(Math.random() * 1e8);
+  state.works = ZetaSample.generate(200, state.seed);
+  state.sourceLabel = '합성 샘플 (시드 ' + state.seed + ')';
+  run();
+});
+
+$('#file').addEventListener('change', function (e) {
+  var f = e.target.files && e.target.files[0];
+  if (!f) return;
+  var reader = new FileReader();
+  reader.onload = function (ev) {
+    var text = ev.target.result;
+    try {
+      var data;
+      if (/\.json$/i.test(f.name)) {
+        data = JSON.parse(text);
+        if (!Array.isArray(data)) data = data.works || [];
+      } else {
+        data = ZetaAnalyzer.parseCSV(text);
+      }
+      if (!data.length) throw new Error('작품이 0개입니다.');
+      state.works = data;
+      state.sourceLabel = f.name;
+      run();
+    } catch (err) {
+      alert('파일을 읽지 못했습니다: ' + err.message);
+    }
+  };
+  reader.readAsText(f, 'utf-8');
+});
+
+$('#btn-csv').addEventListener('click', function () {
+  var csv = 'id,title,tags,createdAt,chats,likes,creatorFollowers\n' +
+            'w001,예시 작품,오피스|상사|집착,2026-05-01,1200,180,340\n' +
+            'w002,두 번째 작품,판타지|이세계|다정,2026-06-12,860,90,120\n';
+  download(csv, 'zeta-works-template.csv', 'text/csv');
+});
+
+$('#btn-json').addEventListener('click', function () {
+  if (!state.report) return;
+  var out = Object.assign({}, state.report);
+  delete out.works;               // 원본 작품 배열은 제외해 파일 크기를 줄인다
+  download(JSON.stringify(out, null, 2), 'zeta-analysis.json', 'application/json');
+});
+
+function download(content, filename, type) {
+  var blob = new Blob([content], { type: type + ';charset=utf-8' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(function () { URL.revokeObjectURL(url); }, 500);
+}
+
+/* ---------- 시작 ---------- */
+run();
+</script>
+</body>
+</html>
