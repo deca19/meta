@@ -94,13 +94,57 @@ h2 { font-size:15px; font-weight:800; letter-spacing:-.3px; margin:0 0 4px; }
 }
 .tag.validated { background:var(--good-soft); color:var(--good); }
 .tag.hypothesis { background:var(--warn-soft); color:var(--warn); }
+.tag.trend-rising { background:var(--good-soft); color:var(--good); }
+.tag.trend-declining { background:var(--bad-soft); color:var(--bad); }
+.tag.trend-stable { background:var(--panel2); color:var(--dim); }
+.kindtag {
+  display:inline-block; vertical-align:middle; margin-left:5px;
+  padding:2px 6px; border-radius:5px; font-size:9.5px; font-weight:700;
+  background:var(--accent-soft); color:var(--accent);
+}
+
+/* ---------- 신뢰구간 막대 ---------- */
+.ci { margin-top:12px; }
+.ci-head { display:flex; justify-content:space-between; align-items:baseline; font-size:10.5px; color:var(--dim); margin-bottom:7px; }
+.ci-val { font-variant-numeric:tabular-nums; }
+.ci-val b { color:var(--text); font-size:12px; }
+.ci-rng { color:var(--dim); margin-left:3px; }
+.ci-badge {
+  display:inline-block; margin-left:6px; padding:1.5px 6px; border-radius:5px;
+  font-size:9.5px; font-weight:700; background:var(--good-soft); color:var(--good);
+}
+.ci-badge.dim { background:var(--panel2); color:var(--dim); }
+.ci-track { position:relative; height:16px; }
+.ci-track::before {
+  content:''; position:absolute; left:0; right:0; top:7px; height:2px;
+  background:var(--panel2); border-radius:2px;
+}
+.ci-band {
+  position:absolute; top:5px; height:6px; border-radius:3px;
+  background:var(--dim); opacity:.5;
+}
+.ci.sig-hi .ci-band { background:var(--good); opacity:.75; }
+.ci.sig-lo .ci-band { background:var(--bad); opacity:.75; }
+.ci-one {
+  position:absolute; top:1px; width:1px; height:14px;
+  background:var(--sub); opacity:.85;
+}
+.ci-one::after {
+  content:'1.0'; position:absolute; top:14px; left:-8px;
+  font-size:8.5px; color:var(--dim);
+}
+.ci-dot {
+  position:absolute; top:3px; width:10px; height:10px; margin-left:-5px;
+  border-radius:50%; background:var(--text); border:2px solid var(--panel);
+}
 
 /* 지표 바 */
 .bars { margin-top:12px; display:flex; flex-direction:column; gap:6px; }
 .bar { display:flex; align-items:center; gap:9px; font-size:10.5px; }
 .bar .lb { width:62px; color:var(--dim); flex:0 0 auto; }
 .bar .tr { flex:1; height:5px; background:var(--panel2); border-radius:99px; overflow:hidden; }
-.bar .fl { height:100%; background:var(--accent); border-radius:99px; transition:width .5s cubic-bezier(.2,.8,.3,1); }
+/* display:block 필수 — span 은 인라인이라 height/width 가 무시된다 */
+.bar .fl { display:block; height:100%; background:var(--accent); border-radius:99px; transition:width .5s cubic-bezier(.2,.8,.3,1); }
 .bar .pv { width:30px; text-align:right; color:var(--sub); font-variant-numeric:tabular-nums; flex:0 0 auto; }
 
 .evd {
@@ -206,8 +250,27 @@ code { background:var(--panel2); padding:1.5px 5px; border-radius:4px; font-size
       <input type="range" id="w-openness" min="0" max="100" value="16" />
     </div>
     <div class="ctl">
-      <label>신인 성공률 가중 <span class="val" id="v-new">0.12</span></label>
-      <input type="range" id="w-newcomer" min="0" max="100" value="12" />
+      <label>신인 성공률 가중 <span class="val" id="v-new">0.10</span></label>
+      <input type="range" id="w-newcomer" min="0" max="100" value="10" />
+    </div>
+    <div class="ctl">
+      <label>추세 가중 <span class="val" id="v-trend">0.12</span></label>
+      <input type="range" id="w-trend" min="0" max="100" value="12" />
+    </div>
+    <div class="ctl">
+      <label>추천 다양성 λ <span class="val" id="v-div">0.45</span></label>
+      <input type="range" id="diversity" min="0" max="100" value="45" />
+    </div>
+    <div class="ctl">
+      <label>순위 기준</label>
+      <select id="conservative">
+        <option value="0">점추정 (기본)</option>
+        <option value="1">보수적 — 신뢰구간 하한</option>
+      </select>
+    </div>
+    <div class="ctl">
+      <label>내 작품 (선택) — 적합도 계산</label>
+      <input type="file" id="myfile" accept=".csv,.json,application/json,text/csv" />
     </div>
   </div>
 
@@ -236,8 +299,10 @@ code { background:var(--panel2); padding:1.5px 5px; border-radius:4px; font-size
    ============================================================================= */
 var state = {
   works: null,        // 현재 분석 대상 작품 배열
+  myWorks: null,      // 제작자 적합도 계산용 내 작품
   report: null,       // 최근 분석 결과
   sourceLabel: '합성 샘플',
+  myLabel: '',
   activeAxis: 'genre',
   seed: 20260809
 };
@@ -249,15 +314,20 @@ function readOptions() {
   var g = function (id) { return Number($('#' + id).value); };
   return {
     sampling: $('#sampling').value,
+    conservative: $('#conservative').value === '1',
     minSupport: g('minSupport'),
     priorStrength: g('prior'),
+    diversity: g('diversity') / 100,
+    myWorks: state.myWorks,
     weights: {
       gap:       g('w-gap') / 100,
       momentum:  g('w-momentum') / 100,
+      trend:     g('w-trend') / 100,
       openness:  g('w-openness') / 100,
       newcomer:  g('w-newcomer') / 100,
-      quality:   0.10,
-      staleness: 0.10
+      quality:   0.09,
+      staleness: 0.08,
+      fit:       state.myWorks ? 0.12 : 0.05
     }
   };
 }
@@ -272,12 +342,14 @@ function run() {
 }
 
 function syncLabels() {
-  $('#v-min').textContent  = $('#minSupport').value;
-  $('#v-k').textContent    = $('#prior').value;
-  $('#v-gap').textContent  = (Number($('#w-gap').value) / 100).toFixed(2);
-  $('#v-mom').textContent  = (Number($('#w-momentum').value) / 100).toFixed(2);
-  $('#v-open').textContent = (Number($('#w-openness').value) / 100).toFixed(2);
-  $('#v-new').textContent  = (Number($('#w-newcomer').value) / 100).toFixed(2);
+  $('#v-min').textContent   = $('#minSupport').value;
+  $('#v-k').textContent     = $('#prior').value;
+  $('#v-gap').textContent   = (Number($('#w-gap').value) / 100).toFixed(2);
+  $('#v-mom').textContent   = (Number($('#w-momentum').value) / 100).toFixed(2);
+  $('#v-open').textContent  = (Number($('#w-openness').value) / 100).toFixed(2);
+  $('#v-new').textContent   = (Number($('#w-newcomer').value) / 100).toFixed(2);
+  $('#v-trend').textContent = (Number($('#w-trend').value) / 100).toFixed(2);
+  $('#v-div').textContent   = (Number($('#diversity').value) / 100).toFixed(2);
 }
 
 /* ---------- 렌더 ---------- */
@@ -306,7 +378,10 @@ function renderTiles(r) {
     tile('최근 90일 신작', m.recentCount + '개', (m.count ? Math.round(m.recentCount / m.count * 100) : 0) + '% 비중') +
     tile('누적 대화', (m.totalChats / 10000).toFixed(1) + '만', '수요 총량') +
     tile('추천 주제', r.recommendations.length + '건', '검증 + 가설') +
+    tile('통계적 유의', m.significantCells + '건',
+         '전체 조합 중 CI가 1 제외') +
     tile('레드오션', r.saturated.length + '건', '회피 권장') +
+    (m.myWorksCount ? tile('내 작품', m.myWorksCount + '개', '적합도 반영됨') : '') +
   '</div>';
 }
 function tile(k, v, s) {
@@ -335,8 +410,8 @@ function renderRecommendations(r) {
       ? '<span>작품 <b>' + e.works + '</b>개</span>' +
         '<span>공급 <b>' + e.supplyShare + '%</b></span>' +
         '<span>수요 <b>' + e.demandShare + '%</b></span>' +
-        '<span>gap <b>' + e.gap + '</b></span>' +
-        '<span>신작성과 <b>' + e.momentum + '</b></span>'
+        '<span>추세 <b>' + e.trend + '</b></span>' +
+        (e.fit !== 1 ? '<span>적합도 <b>' + e.fit + '</b></span>' : '')
       : '<span>기존 작품 <b>' + e.works + '</b>개</span>' +
         '<span>기대 <b>' + e.expected + '</b>건</span>' +
         '<span>lift <b>' + e.lift + '</b></span>';
@@ -345,12 +420,15 @@ function renderRecommendations(r) {
       '<div class="top">' +
         '<div class="score">' + Math.round(x.score) + '</div>' +
         '<div class="ttl">' +
-          '<div class="nm">' + esc(x.label) + '</div>' +
+          '<div class="nm">' + esc(x.label) +
+            (x.kind === 'triple' ? ' <span class="kindtag">3축</span>' : '') + '</div>' +
           '<div class="lg">' + esc(x.logline) + '</div>' +
           '<span class="tag ' + x.confidence + '">' +
             (x.confidence === 'validated' ? '데이터 검증됨' : '가설 · 표본 없음') + '</span>' +
+          (x.trend ? '<span class="tag trend-' + x.trend + '">' + trendLabel(x.trend) + '</span>' : '') +
         '</div>' +
-      '</div>' + bars +
+      '</div>' +
+      (e.gapCI ? renderCI(e.gap, e.gapCI, x.significant) : '') + bars +
       '<div class="evd">' + evd + '</div>' +
       (x.risks.length ? '<div class="risks">' + x.risks.map(function (v) {
         return '<span class="risk">' + esc(v.label) + '</span>'; }).join('') + '</div>' : '') +
@@ -358,13 +436,45 @@ function renderRecommendations(r) {
   }).join('');
 
   return '<section><h2>추천 주제</h2>' +
-    '<p class="sub">기회점수 = 수요/공급 불균형 · 신작 성과 · 비독점도 · 신인 성공률 · 만족도 · 노후도의 백분위 가중합. ' +
-    '"가설" 은 표본이 없어 검증되지 않은 조합입니다.</p>' +
+    '<p class="sub">기회점수 = 수요/공급 불균형 · 신작 성과 · 추세 · 비독점도 · 신인 성공률 · 만족도 · 노후도 · 적합도의 백분위 가중합. ' +
+    'gap 막대의 <b>회색 구간이 신뢰구간</b>이며, 이 구간이 1을 포함하면 "수요가 공급을 앞선다" 고 단정할 수 없습니다.</p>' +
     '<div class="cards">' + cards + '</div></section>';
 }
 
-var BAR_LABELS = { gap:'수요/공급', momentum:'신작 성과', openness:'비독점도',
-                   newcomer:'신인 성공', quality:'만족도', staleness:'노후도' };
+var BAR_LABELS = { gap:'수요/공급', momentum:'신작 성과', trend:'추세', openness:'비독점도',
+                   newcomer:'신인 성공', quality:'만족도', staleness:'노후도', fit:'적합도' };
+
+function trendLabel(t) {
+  return t === 'rising' ? '상승 추세' : (t === 'declining' ? '하락 추세' : '보합');
+}
+
+/**
+ * gap 신뢰구간 시각화.
+ * 눈금 1.0(중립선)을 기준으로 구간 막대를 그린다. 구간이 1을 걸치면
+ * 회색, 완전히 한쪽에 있으면 색을 준다 — 통계적 유의성을 한눈에 보이게.
+ */
+function renderCI(gap, ci, significant) {
+  var MAX = 2.6;                                   // 표시 상한
+  var pos = function (v) { return Math.min(100, Math.max(0, v / MAX * 100)); };
+  var lo = pos(ci[0]), hi = pos(ci[1]), pt = pos(gap), one = pos(1);
+  var cls = significant ? (ci[0] > 1 ? 'sig-hi' : 'sig-lo') : 'insig';
+
+  return '<div class="ci ' + cls + '">' +
+    '<div class="ci-head">' +
+      '<span>수요/공급 gap</span>' +
+      '<span class="ci-val"><b>' + gap.toFixed(2) + '</b> ' +
+        '<span class="ci-rng">[' + ci[0].toFixed(2) + '–' + ci[1].toFixed(2) + ']</span>' +
+        (significant ? '<span class="ci-badge">유의미</span>'
+                     : '<span class="ci-badge dim">1 포함</span>') +
+      '</span>' +
+    '</div>' +
+    '<div class="ci-track">' +
+      '<div class="ci-band" style="left:' + lo + '%;width:' + Math.max(1, hi - lo) + '%"></div>' +
+      '<div class="ci-one" style="left:' + one + '%"></div>' +
+      '<div class="ci-dot" style="left:' + pt + '%"></div>' +
+    '</div>' +
+  '</div>';
+}
 
 function renderBars(p) {
   return '<div class="bars">' + Object.keys(BAR_LABELS).map(function (k) {
@@ -391,8 +501,11 @@ function renderAxis(r) {
       '<td class="num">' + c.stats.count + '</td>' +
       '<td class="num">' + (c.supplyShare * 100).toFixed(1) + '%</td>' +
       '<td class="num">' + (c.demandShare * 100).toFixed(1) + '%</td>' +
-      '<td class="num"><span class="pill ' + tone(c.gap, 1.1, 0.95) + '">' + c.gap.toFixed(2) + '</span></td>' +
+      '<td class="num"><span class="pill ' + tone(c.gap, 1.1, 0.95) + '">' + c.gap.toFixed(2) + '</span>' +
+        '<div class="mini">' + c.gapLo.toFixed(2) + '–' + c.gapHi.toFixed(2) + '</div></td>' +
       '<td class="num">' + c.momentum.toFixed(2) + '</td>' +
+      '<td class="num"><span class="pill ' + (c.trendLabel === 'rising' ? 'hi'
+        : (c.trendLabel === 'declining' ? 'lo' : 'mid')) + '">' + c.trend.toFixed(2) + '</span></td>' +
       '<td class="num">' + c.supplyRush.toFixed(2) + '</td>' +
       '<td>' + (c.risks.length
         ? c.risks.map(function (x) { return '<span class="risk">' + esc(x.code) + '</span>'; }).join(' ')
@@ -402,11 +515,12 @@ function renderAxis(r) {
 
   return '<section><h2>축별 시장 지형</h2>' +
     '<p class="sub">gap 1.0 = 공급 비중과 실수요가 균형. 1.0 초과면 수요가 공급을 앞선 구간, 미만이면 과공급입니다. ' +
-    '유입은 최근 신작이 이 구간으로 몰리는 정도(1.0 초과 = 경쟁 증가 중).</p>' +
+    'gap 아래 작은 숫자는 95% 신뢰구간 — 1.0을 포함하면 판단을 유보하세요. ' +
+    '추세는 코호트별 수요 점유율의 방향(1.0 초과 = 상승), 유입은 최근 신작이 이 구간으로 몰리는 정도입니다.</p>' +
     '<div class="axistabs">' + tabs + '</div>' +
     '<div class="tblwrap"><table><thead><tr>' +
       '<th>값</th><th>기회점수</th><th>작품수</th><th>공급</th><th>수요</th>' +
-      '<th>gap</th><th>신작성과</th><th>유입</th><th>리스크</th>' +
+      '<th>gap (95% CI)</th><th>신작성과</th><th>추세</th><th>유입</th><th>리스크</th>' +
     '</tr></thead><tbody>' + rows + '</tbody></table></div></section>';
 }
 
@@ -491,29 +605,45 @@ $('#btn-sample').addEventListener('click', function () {
   run();
 });
 
-$('#file').addEventListener('change', function (e) {
-  var f = e.target.files && e.target.files[0];
-  if (!f) return;
+/** CSV/JSON 파일을 작품 배열로 읽는다 */
+function loadWorksFile(file, onDone) {
   var reader = new FileReader();
   reader.onload = function (ev) {
-    var text = ev.target.result;
     try {
       var data;
-      if (/\.json$/i.test(f.name)) {
-        data = JSON.parse(text);
+      if (/\.json$/i.test(file.name)) {
+        data = JSON.parse(ev.target.result);
         if (!Array.isArray(data)) data = data.works || [];
       } else {
-        data = ZetaAnalyzer.parseCSV(text);
+        data = ZetaAnalyzer.parseCSV(ev.target.result);
       }
       if (!data.length) throw new Error('작품이 0개입니다.');
-      state.works = data;
-      state.sourceLabel = f.name;
-      run();
+      onDone(data);
     } catch (err) {
       alert('파일을 읽지 못했습니다: ' + err.message);
     }
   };
-  reader.readAsText(f, 'utf-8');
+  reader.readAsText(file, 'utf-8');
+}
+
+$('#file').addEventListener('change', function (e) {
+  var f = e.target.files && e.target.files[0];
+  if (!f) return;
+  loadWorksFile(f, function (data) {
+    state.works = data;
+    state.sourceLabel = f.name;
+    run();
+  });
+});
+
+$('#myfile').addEventListener('change', function (e) {
+  var f = e.target.files && e.target.files[0];
+  if (!f) return;
+  loadWorksFile(f, function (data) {
+    state.myWorks = data;
+    state.myLabel = f.name;
+    run();
+  });
 });
 
 $('#btn-csv').addEventListener('click', function () {

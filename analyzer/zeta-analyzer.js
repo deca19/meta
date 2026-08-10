@@ -155,6 +155,15 @@
     sampling: 'census',     // 'census' 전수 | 'ranked' 인기순 상위만 수집(생존편향)
     topN: 8,
     redundancyThreshold: 0.65,  // 자카드 중복도가 이 이상이면 정보량 없는 조합으로 간주
+
+    seed: 12345,            // 부트스트랩 난수 시드 — 결과 재현성을 위해 고정
+    bootstrapSamples: 200,  // 신뢰구간 재표본 횟수 (0 이면 CI 계산 생략)
+    conservative: false,    // true → gap 의 신뢰구간 하한으로 순위를 매긴다
+    diversity: 0.45,        // 추천 다양성 λ (0 이면 점수순 그대로)
+    cohortDays: 90,         // 코호트 한 칸의 기간
+    cohortCount: 4,         // 코호트 개수 (가장 오래된 칸은 열린 구간)
+    myWorks: null,          // 내 작품 배열 → 제작자 적합도 계산
+
     comboAxes: [            // 교차 분석할 축 쌍
       ['genre', 'relation'],
       ['genre', 'tone'],
@@ -162,13 +171,19 @@
       ['relation', 'archetype'],
       ['tone', 'archetype']
     ],
+    tripleAxes: [           // 3축 조합 — 실제 "주제" 에 가장 가까운 단위
+      ['genre', 'relation', 'tone'],
+      ['setting', 'genre', 'archetype']
+    ],
     weights: {
-      gap:       0.30,      // 수요/공급 불균형
-      momentum:  0.22,      // 최근작 성과 추세
-      openness:  0.16,      // 비독점도 (1 - 집중도)
-      newcomer:  0.12,      // 신인 제작자 성공률
-      quality:   0.10,      // 좋아요/대화 = 만족도
-      staleness: 0.10       // 노후도 = 리프레시 여지
+      gap:       0.28,      // 수요/공급 불균형
+      momentum:  0.15,      // 신작 성과 수준
+      trend:     0.12,      // 코호트별 점유율 추세(방향)
+      openness:  0.13,      // 비독점도 (1 - 집중도)
+      newcomer:  0.10,      // 신인 제작자 성공률
+      quality:   0.09,      // 좋아요/대화 = 만족도
+      staleness: 0.08,      // 노후도 = 리프레시 여지
+      fit:       0.05       // 제작자 적합도 (myWorks 없으면 전 셀 1.0 → 순위 영향 없음)
     }
   };
 
@@ -223,6 +238,59 @@
     var p = (prior === undefined) ? 1 : prior;
     if (!isFinite(value)) return p;
     return (n * value + k * p) / (n + k);
+  }
+
+  /** 시드 고정 선형합동 난수 — 부트스트랩 결과를 재현 가능하게 만든다 */
+  function makeRandom(seed) {
+    var s = (seed >>> 0) || 1;
+    return function () {
+      s = (s * 1664525 + 1013904223) >>> 0;
+      return s / 4294967296;
+    };
+  }
+
+  /**
+   * 부트스트랩 신뢰구간 — 점수를 "정밀한 값" 으로 착각하지 않기 위한 장치.
+   *
+   * gap = 셀 평균 수요 / 전체 평균 수요 이므로, 셀 구성원을 복원추출로 재표본하여
+   * gap 의 분포를 만든다. 작품 6개짜리 셀의 gap 1.6 은 신뢰구간이 [0.9, 2.6] 처럼
+   * 넓게 나오고, 20개짜리 셀의 gap 1.4 는 [1.2, 1.7] 로 좁게 나온다.
+   * 같은 자릿수로 나란히 보이던 두 숫자가 실제로는 전혀 다른 무게였음을 드러낸다.
+   */
+  function bootstrapGapCI(members, globalMeanDemand, opt, rand) {
+    var B = opt.bootstrapSamples;
+    var n = members.length;
+    if (!B || n === 0 || globalMeanDemand <= 0) return null;
+
+    var gaps = new Array(B);
+    for (var b = 0; b < B; b++) {
+      var wSum = 0, dSum = 0;
+      for (var i = 0; i < n; i++) {
+        var m = members[(rand() * n) | 0];
+        wSum += m.weight;
+        dSum += m.weight * m.work.demand;
+      }
+      var mean = wSum > 0 ? dSum / wSum : 0;
+      // 점추정과 동일한 축소를 적용해야 CI 와 점추정이 같은 척도에 놓인다
+      gaps[b] = shrink(mean / globalMeanDemand, n, opt.priorStrength, 1);
+    }
+    gaps.sort(function (a, b2) { return a - b2; });
+    return {
+      lo: gaps[Math.floor(B * 0.025)],
+      hi: gaps[Math.min(B - 1, Math.floor(B * 0.975))]
+    };
+  }
+
+  /** 단순 선형회귀 기울기 — 코호트 추세 계산용 */
+  function linregSlope(points) {
+    var n = points.length;
+    if (n < 2) return 0;
+    var sx = 0, sy = 0, sxx = 0, sxy = 0;
+    points.forEach(function (p) {
+      sx += p.x; sy += p.y; sxx += p.x * p.x; sxy += p.x * p.y;
+    });
+    var d = n * sxx - sx * sx;
+    return d === 0 ? 0 : (n * sxy - sx * sy) / d;
   }
 
   /* ===========================================================================
@@ -328,7 +396,11 @@
         velocity: velocity,
         followers: Math.max(0, num(w.creatorFollowers)),
         demand: velocity,          // 아래에서 윈저화로 덮어씀
-        quality: quality
+        quality: quality,
+        // 코호트 인덱스: 0 = 가장 오래된 칸(열린 구간), 마지막 = 최신
+        cohort: clamp(
+          opt.cohortCount - 1 - Math.floor(ageDays / opt.cohortDays),
+          0, opt.cohortCount - 1)
       };
     });
 
@@ -361,11 +433,14 @@
     var oldCount = 0;
     var ids = {};
     var newcomerTotal = 0, newcomerHit = 0;
+    var cohortDemand = [];
+    for (var ci = 0; ci < ctx.cohortCount; ci++) cohortDemand.push(0);
 
     members.forEach(function (m) {
       var w = m.work;
       n += m.weight;
       demandSum += m.weight * w.demand;
+      cohortDemand[w.cohort] += m.weight * w.demand;
       demands.push(w.demand);
       velocities.push(w.velocity);
       qualities.push(w.quality);
@@ -399,6 +474,7 @@
       recentCount: recentVel.length,
       oldCount: oldCount,
       ids: ids,
+      cohortDemand: cohortDemand,
       recentMedianVelocity: recentVel.length ? median(recentVel) : 0,
       hhi: hhi,
       topShare: topShare,
@@ -443,6 +519,26 @@
     return groups;
   }
 
+  /** 세 축의 교차 셀 — 실제 "주제" 에 가장 가까운 단위 */
+  function groupByTriple(works, ax) {
+    var groups = {};
+    works.forEach(function (w) {
+      var A = w.axes[ax[0]] || [], B = w.axes[ax[1]] || [], C = w.axes[ax[2]] || [];
+      if (!A.length || !B.length || !C.length) return;
+      var weight = 1 / (A.length * B.length * C.length);
+      A.forEach(function (a) {
+        B.forEach(function (b) {
+          C.forEach(function (c) {
+            var key = a + ' × ' + b + ' × ' + c;
+            if (!groups[key]) groups[key] = { values: [a, b, c], members: [] };
+            groups[key].members.push({ work: w, weight: weight });
+          });
+        });
+      });
+    });
+    return groups;
+  }
+
   /* ===========================================================================
    * 7. 점수화
    * ========================================================================= */
@@ -452,10 +548,11 @@
    * share/gap 은 반드시 자기 그룹(같은 축 또는 같은 축 쌍) 총량 기준으로 계산한다.
    * 장르 축의 공급 비중을 정서 축 총량으로 나누면 의미가 없기 때문이다.
    */
-  function computeCellMetrics(cells, totals, opt) {
+  function computeCellMetrics(cells, totals, opt, rand) {
     if (!cells.length) return [];
 
     var k = opt.priorStrength;
+    var globalMeanDemand = totals.n > 0 ? totals.demand / totals.n : 0;
     var globalNewcomer = totals.globalNewcomerRate;
     var globalQuality  = totals.globalQuality || 1e-9;
     var globalRecentVel = totals.globalRecentVelocity || 1e-9;
@@ -474,6 +571,32 @@
       // 인기순 상위만 수집한 데이터는 실패작이 보이지 않아 gap 이 부풀려진다.
       // 보수적으로 중립 쪽으로 절반 당긴다.
       if (opt.sampling === 'ranked') c.gap = 1 + (c.gap - 1) * 0.5;
+
+      // (1-b) gap 의 신뢰구간 — 표본이 적은 셀의 점수를 곧이곧대로 믿지 않기 위해
+      var ci = rand ? bootstrapGapCI(s.members, globalMeanDemand, opt, rand) : null;
+      if (ci && opt.sampling === 'ranked') {
+        ci = { lo: 1 + (ci.lo - 1) * 0.5, hi: 1 + (ci.hi - 1) * 0.5 };
+      }
+      c.gapLo = ci ? ci.lo : c.gap;
+      c.gapHi = ci ? ci.hi : c.gap;
+      // 신뢰구간이 1 을 넘지 않으면 "수요 초과" 라고 말할 근거가 없다
+      c.significant = ci ? (ci.lo > 1 || ci.hi < 1) : false;
+
+      // (1-c) 코호트 추세 — 시간에 따라 이 셀의 수요 점유율이 오르는가 내리는가.
+      // 코호트 안에서 점유율을 계산하므로 velocity 가 나이에 따라 감소하는
+      // 체계적 편향이 분자·분모에 동일하게 걸려 상쇄된다.
+      var pts = [];
+      for (var ci2 = 0; ci2 < totals.cohortTotals.length; ci2++) {
+        var denom = totals.cohortTotals[ci2];
+        if (denom > 0) pts.push({ x: ci2, y: s.cohortDemand[ci2] / denom });
+      }
+      var meanShare = pts.length
+        ? pts.reduce(function (a, p) { return a + p.y; }, 0) / pts.length : 0;
+      var slope = linregSlope(pts);
+      // 점유율 규모로 나눠 상대 변화율로 만든다(작은 셀도 큰 셀과 비교 가능)
+      var relSlope = meanShare > 0 ? slope / meanShare : 0;
+      c.trend = shrink(1 + relSlope, s.count, k, 1);
+      c.trendLabel = c.trend > 1.15 ? 'rising' : (c.trend < 0.85 ? 'declining' : 'stable');
 
       // (2) 모멘텀 — 최근작의 성과가 전체 최근작 중앙값 대비 어떤가
       var rawMomentum = s.recentCount ? (s.recentMedianVelocity / globalRecentVel) : 1;
@@ -498,9 +621,59 @@
       c.supplyRush = oldShare > 0
         ? shrink(recentShare / oldShare, s.recentCount, k / 2, 1)
         : 1;
+
+      // (7) 제작자 적합도 — 내 작품이 이 축 값들에서 평균 이상이었는가
+      c.fit = totals.fitOf ? totals.fitOf(c) : 1;
     });
 
     return cells;
+  }
+
+  /* ===========================================================================
+   * 7-b. 제작자 적합도
+   * ========================================================================= */
+  /**
+   * 내가 만든 작품들의 축 값별 상대 성과를 계산한다.
+   *
+   * "시장에 기회가 있는 주제" 와 "내가 잘 만드는 주제" 는 다른 질문이다.
+   * 내 작품 표본은 대개 10개 미만이라 노이즈가 크므로 축소 강도를 세게(k=3) 준다.
+   * myWorks 가 없으면 모든 셀이 1.0 을 받아 순위에 영향을 주지 않는다.
+   */
+  function buildFitIndex(marketWorks, myWorks) {
+    if (!myWorks || !myWorks.length) return null;
+
+    var index = {};
+    AXIS_KEYS.forEach(function (axis) {
+      var marketGroups = groupByAxis(marketWorks, axis);
+      var mineGroups   = groupByAxis(myWorks, axis);
+
+      Object.keys(mineGroups).forEach(function (value) {
+        var mine = mineGroups[value].map(function (m) { return m.work.velocity; });
+        var market = (marketGroups[value] || []).map(function (m) { return m.work.velocity; });
+        var marketMed = median(market);
+        if (marketMed <= 0) return;
+        index[axis + '|' + value] = {
+          ratio: shrink(median(mine) / marketMed, mine.length, 3, 1),
+          n: mine.length
+        };
+      });
+    });
+    return index;
+  }
+
+  /** 셀이 가진 축 값들의 적합도 평균 (기록 없는 값은 중립 1.0) */
+  function makeFitResolver(index) {
+    if (!index) return null;
+    return function (cell) {
+      var axes = cell.kind === 'axis' ? [cell.axis] : cell.axes;
+      var values = cell.kind === 'axis' ? [cell.value] : cell.values;
+      var sum = 0;
+      axes.forEach(function (ax, i) {
+        var e = index[ax + '|' + values[i]];
+        sum += e ? e.ratio : 1;
+      });
+      return axes.length ? sum / axes.length : 1;
+    };
   }
 
   /**
@@ -513,30 +686,38 @@
   function finalizeScores(cells, opt) {
     if (!cells.length) return [];
 
+    // conservative 모드에서는 gap 의 신뢰구간 하한으로 순위를 매긴다.
+    // "가장 좋아 보이는 셀" 이 아니라 "나쁠 리 없는 셀" 을 고르는 방식이며,
+    // 표본이 적어 CI 가 넓은 셀은 자동으로 뒤로 밀린다.
+    var gapMetric = opt.conservative
+      ? cells.map(function (c) { return c.gapLo; })
+      : cells.map(function (c) { return c.gap; });
+
     // 백분위 정규화
     var pct = {
-      gap:       percentileRank(cells.map(function (c) { return c.gap; })),
+      gap:       percentileRank(gapMetric),
       momentum:  percentileRank(cells.map(function (c) { return c.momentum; })),
+      trend:     percentileRank(cells.map(function (c) { return c.trend; })),
       openness:  percentileRank(cells.map(function (c) { return c.openness; })),
       newcomer:  percentileRank(cells.map(function (c) { return c.newcomer; })),
       quality:   percentileRank(cells.map(function (c) { return c.quality; })),
-      staleness: percentileRank(cells.map(function (c) { return c.staleness; }))
+      staleness: percentileRank(cells.map(function (c) { return c.staleness; })),
+      fit:       percentileRank(cells.map(function (c) { return c.fit; }))
     };
 
     var w = opt.weights;
-    cells.forEach(function (c, i) {
-      c.p = {
-        gap:       pct.gap[i],
-        momentum:  pct.momentum[i],
-        openness:  pct.openness[i],
-        newcomer:  pct.newcomer[i],
-        quality:   pct.quality[i],
-        staleness: pct.staleness[i]
-      };
+    var KEYS = ['gap', 'momentum', 'trend', 'openness', 'newcomer', 'quality', 'staleness', 'fit'];
 
-      var sum = w.gap * c.p.gap + w.momentum * c.p.momentum + w.openness * c.p.openness
-              + w.newcomer * c.p.newcomer + w.quality * c.p.quality + w.staleness * c.p.staleness;
-      var wTotal = w.gap + w.momentum + w.openness + w.newcomer + w.quality + w.staleness;
+    cells.forEach(function (c, i) {
+      c.p = {};
+      KEYS.forEach(function (key) { c.p[key] = pct[key][i]; });
+
+      var sum = 0, wTotal = 0;
+      KEYS.forEach(function (key) {
+        var weight = num(w[key], 0);
+        sum += weight * c.p[key];
+        wTotal += weight;
+      });
 
       c.score = 100 * (sum / (wTotal || 1));
 
@@ -558,6 +739,10 @@
     if (s.hhi > 0.5)          r.push({ code: 'WINNER_TAKE_ALL', label: '상위 독식 구조' });
     if (s.topShare > 0.6)     r.push({ code: 'TOP_HEAVY', label: '1개 작품이 수요 대부분 차지' });
     if (c.momentum < 0.8)     r.push({ code: 'DECLINING', label: '최근작 성과 하락' });
+    if (c.trendLabel === 'declining')
+                              r.push({ code: 'SHRINKING', label: '수요 점유율 하락 추세' });
+    if (c.gapLo !== undefined && c.gapHi !== undefined && (c.gapHi - c.gapLo) > 0.8)
+                              r.push({ code: 'WIDE_CI', label: '추정 불확실 (신뢰구간 넓음)' });
     if (c.p && c.p.staleness > 0.85 && c.momentum < 1)
                               r.push({ code: 'STALE', label: '신작 유입 정체' });
     if (c.gap < 0.85 && c.supplyShare > 0.08)
@@ -585,6 +770,50 @@
     a.forEach(function (id) { if (idsB[id]) inter++; });
     var union = a.length + b.length - inter;
     return union > 0 ? inter / union : 0;
+  }
+
+  /* ===========================================================================
+   * 7-c. 다양성 기반 선별 (Maximal Marginal Relevance)
+   * ========================================================================= */
+  /**
+   * 점수 상위 N개를 그대로 뽑으면 추천이 한 덩어리로 쏠린다.
+   * "오피스 × 집착", "오피스 × 상사·부하", "상사·부하 × 얀데레" 는 사실상
+   * 하나의 선택지이지 여덟 개의 선택지가 아니다.
+   *
+   * 매 단계에서 (점수 − λ · 이미 뽑은 것과의 최대 유사도) 가 가장 큰 항목을 고른다.
+   * λ=0 이면 순수 점수순, 값이 클수록 서로 다른 영역을 강제로 섞는다.
+   */
+  function selectDiverse(cells, n, lambda) {
+    if (lambda <= 0) return cells.slice(0, n);
+
+    var pool = cells.slice();
+    var picked = [];
+
+    while (picked.length < n && pool.length) {
+      var bestIdx = 0, bestVal = -Infinity;
+      pool.forEach(function (c, i) {
+        var maxSim = 0;
+        picked.forEach(function (p) {
+          var sim = cellSimilarity(c, p);
+          if (sim > maxSim) maxSim = sim;
+        });
+        var val = (c.score / 100) - lambda * maxSim;
+        if (val > bestVal) { bestVal = val; bestIdx = i; }
+      });
+      picked.push(pool.splice(bestIdx, 1)[0]);
+    }
+    return picked;
+  }
+
+  /** 두 셀의 유사도 — 공유하는 축 값 비율과 작품 집합 중복도의 혼합 */
+  function cellSimilarity(a, b) {
+    var va = a.kind === 'axis' ? [a.value] : a.values;
+    var vb = b.kind === 'axis' ? [b.value] : b.values;
+    var shared = 0;
+    va.forEach(function (v) { if (vb.indexOf(v) >= 0) shared++; });
+    var valueSim = shared / Math.min(va.length, vb.length);
+    var memberSim = jaccard(a.stats.ids, b.stats.ids);
+    return 0.6 * valueSim + 0.4 * memberSim;
   }
 
   /* ===========================================================================
@@ -710,6 +939,8 @@
       return { error: '분석할 작품 데이터가 없습니다.', meta: { count: 0 } };
     }
 
+    var rand = makeRandom(opt.seed);
+
     /* --- 정규화 --- */
     var norm = normalizeWorks(rawWorks, opt);
     var works = norm.works;
@@ -717,8 +948,20 @@
     /* --- 전역 기준값 (신인 판정 / 성과 중앙값) --- */
     var ctx = {
       followerMedian: median(works.map(function (w) { return w.followers; })),
-      velocityMedian: median(works.map(function (w) { return w.velocity; }))
+      velocityMedian: median(works.map(function (w) { return w.velocity; })),
+      cohortCount: opt.cohortCount
     };
+
+    /* --- 코호트별 총 수요 (추세 계산의 분모) --- */
+    var cohortTotals = [];
+    for (var ci = 0; ci < opt.cohortCount; ci++) cohortTotals.push(0);
+    works.forEach(function (w) { cohortTotals[w.cohort] += w.demand; });
+
+    /* --- 제작자 적합도 인덱스 --- */
+    var myNorm = (opt.myWorks && opt.myWorks.length)
+      ? normalizeWorks(opt.myWorks, opt) : null;
+    var fitIndex = myNorm ? buildFitIndex(works, myNorm.works) : null;
+    var fitOf = makeFitResolver(fitIndex);
 
     var recentWorks = works.filter(function (w) { return w.isRecent; });
     var totals = {
@@ -746,6 +989,8 @@
         demand: cells.reduce(function (a, c) { return a + c.stats.demandSum; }, 0),
         recentCount: totals.recentCount,
         oldCount: totals.oldCount,
+        cohortTotals: cohortTotals,
+        fitOf: fitOf,
         globalQuality: totals.globalQuality,
         globalRecentVelocity: totals.globalRecentVelocity,
         globalNewcomerRate: totals.globalNewcomerRate
@@ -765,7 +1010,7 @@
           stats: buildCellStats(groups[val], ctx)
         };
       });
-      allAxisCells = allAxisCells.concat(computeCellMetrics(cells, groupTotals(cells), opt));
+      allAxisCells = allAxisCells.concat(computeCellMetrics(cells, groupTotals(cells), opt, rand));
     });
     finalizeScores(allAxisCells, opt);
 
@@ -777,7 +1022,9 @@
     });
 
     /* --- 조합 셀 (표본이 있는 검증형 추천) ---
-     * 여기도 동일하게 지표는 축 쌍별, 정규화는 전체 조합 풀에서 한 번에. */
+     * 지표는 축 조합별로 계산하되, 정규화는 2축·3축을 한 풀에 모아 한 번에 한다.
+     * 따로 정규화하면 2축 1위와 3축 1위가 나란히 100점을 받아 병합이 무의미해진다.
+     * gap·momentum 등은 모두 비율이라 조합 차수가 달라도 척도가 유지된다. */
     var comboCells = [];
     opt.comboAxes.forEach(function (pair) {
       var groups = groupByPair(works, pair[0], pair[1]);
@@ -788,16 +1035,38 @@
           stats: buildCellStats(g.members, ctx)
         };
       });
-      comboCells = comboCells.concat(computeCellMetrics(cells, groupTotals(cells), opt));
+      comboCells = comboCells.concat(computeCellMetrics(cells, groupTotals(cells), opt, rand));
+    });
+
+    (opt.tripleAxes || []).forEach(function (triple) {
+      var groups = groupByTriple(works, triple);
+      var cells = Object.keys(groups).map(function (key) {
+        var g = groups[key];
+        return {
+          kind: 'triple', axes: triple, values: g.values, label: key,
+          stats: buildCellStats(g.members, ctx)
+        };
+      });
+      comboCells = comboCells.concat(computeCellMetrics(cells, groupTotals(cells), opt, rand));
     });
 
     // 동어반복 조합 표시 — 두 축 값의 작품 집합이 사실상 같으면 발견이 아니다
     var axisIndex = {};
     allAxisCells.forEach(function (c) { axisIndex[c.axis + '|' + c.value] = c; });
     comboCells.forEach(function (c) {
-      var A = axisIndex[c.axes[0] + '|' + c.values[0]];
-      var B = axisIndex[c.axes[1] + '|' + c.values[1]];
-      c.overlap = (A && B) ? jaccard(A.stats.ids, B.stats.ids) : 0;
+      // 3축 조합은 모든 축 쌍을 검사해 가장 심한 중복도를 취한다.
+      // 세 축 중 두 개만 겹쳐도 그 조합은 실질적으로 2축짜리다.
+      var worst = 0;
+      for (var i = 0; i < c.axes.length; i++) {
+        for (var j = i + 1; j < c.axes.length; j++) {
+          var A = axisIndex[c.axes[i] + '|' + c.values[i]];
+          var B = axisIndex[c.axes[j] + '|' + c.values[j]];
+          if (!A || !B) continue;
+          var ov = jaccard(A.stats.ids, B.stats.ids);
+          if (ov > worst) worst = ov;
+        }
+      }
+      c.overlap = worst;
       c.tautology = c.overlap >= opt.redundancyThreshold;
     });
 
@@ -824,24 +1093,37 @@
       .sort(function (a, b) { return b.supplyShare - a.supplyShare; })
       .slice(0, opt.topN);
 
-    /* --- 최종 추천 (동어반복 조합은 제외) --- */
-    var proven = comboCells.filter(function (c) { return !c.provisional && !c.tautology; })
-      .slice(0, opt.topN)
+    /* --- 최종 추천 ---
+     * 동어반복 조합을 걷어낸 뒤, 점수순이 아니라 다양성을 고려해 선별한다.
+     * 상위 8개가 전부 같은 장르의 변주라면 선택지가 8개가 아니라 1개다. */
+    var provenPool = comboCells.filter(function (c) {
+      // gap < 1 은 공급이 수요를 앞선 구간이다. 다른 지표가 좋아도 "이걸 더 만들라"
+      // 고 말할 수 없다. 다양성 선별이 후보가 떨어지면 이런 셀로 목록을 채우기
+      // 때문에 풀 단계에서 잘라낸다. (레드오션 섹션에는 그대로 남는다)
+      return !c.provisional && !c.tautology && c.gap >= 1;
+    });
+    var proven = selectDiverse(provenPool, opt.topN, opt.diversity)
       .map(function (c) {
         var map = comboAxisMap(c);
         return {
           type: c.gap >= 1.05 ? 'proven-gap' : 'solid',
           confidence: 'validated',
+          kind: c.kind,
           label: c.label,
           score: Math.round(c.score * 10) / 10,
           logline: buildLogline(map),
+          significant: c.significant,
+          trend: c.trendLabel,
           evidence: {
             works: c.stats.count,
             supplyShare: +(c.supplyShare * 100).toFixed(1),
             demandShare: +(c.demandShare * 100).toFixed(1),
             gap: +c.gap.toFixed(2),
+            gapCI: [+c.gapLo.toFixed(2), +c.gapHi.toFixed(2)],
             momentum: +c.momentum.toFixed(2),
+            trend: +c.trend.toFixed(2),
             supplyRush: +c.supplyRush.toFixed(2),
+            fit: +c.fit.toFixed(2),
             hhi: +c.stats.hhi.toFixed(2),
             overlap: +c.overlap.toFixed(2),
             medianAgeDays: Math.round(c.stats.medianAge)
@@ -888,6 +1170,17 @@
         opt.redundancyThreshold + ')로 조절할 수 있습니다.');
     }
 
+    // 통계적 유의성 — 추천 대부분이 "노이즈와 구분되지 않음" 인 경우가 흔하다.
+    // 점수만 보면 확신하게 되므로 반드시 함께 알린다.
+    if (opt.bootstrapSamples > 0 && proven.length) {
+      var sig = proven.filter(function (p) { return p.significant; }).length;
+      if (sig < proven.length) {
+        warnings.push('검증형 추천 ' + proven.length + '건 중 ' + sig +
+          '건만 신뢰구간이 1을 벗어납니다. 나머지는 "수요가 공급을 앞선다" 고 단정할 표본이 ' +
+          '부족합니다 — 점수 차이를 실력 차이로 읽지 마세요.');
+      }
+    }
+
     if (opt.sampling === 'ranked') {
       warnings.push('인기순 상위만 수집된 데이터입니다. 실패작이 보이지 않아 수요/공급 비율이 과대평가됩니다. gap 을 절반으로 보정했지만 결과는 낙관 편향입니다.');
     }
@@ -910,6 +1203,12 @@
         count: works.length,
         recentCount: recentWorks.length,
         sampling: opt.sampling,
+        conservative: opt.conservative,
+        diversity: opt.diversity,
+        bootstrapSamples: opt.bootstrapSamples,
+        myWorksCount: myNorm ? myNorm.works.length : 0,
+        cohortTotals: cohortTotals.map(function (v) { return +v.toFixed(1); }),
+        significantCells: comboCells.filter(function (c) { return c.significant; }).length,
         totalChats: works.reduce(function (a, w) { return a + w.chats; }, 0),
         followerMedian: ctx.followerMedian,
         velocityMedian: +ctx.velocityMedian.toFixed(2),
@@ -983,6 +1282,7 @@
     classify: classify,
     parseCSV: parseCSV,
     validateTaxonomy: validateTaxonomy,
+    selectDiverse: selectDiverse,
     // 테스트/확장을 위해 내부 함수도 노출
     _internal: {
       percentileRank: percentileRank,
@@ -991,6 +1291,12 @@
       jaccard: jaccard,
       hasJongseong: hasJongseong,
       buildIndex: buildIndex,
+      makeRandom: makeRandom,
+      linregSlope: linregSlope,
+      bootstrapGapCI: bootstrapGapCI,
+      cellSimilarity: cellSimilarity,
+      buildFitIndex: buildFitIndex,
+      groupByTriple: groupByTriple,
       normalizeWorks: normalizeWorks,
       groupByAxis: groupByAxis,
       groupByPair: groupByPair,
