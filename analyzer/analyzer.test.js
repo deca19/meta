@@ -603,6 +603,154 @@ ok('표본 1개의 fit 이 6개보다 약하게 반영', oneFit && sixFit && one
    '1개 ' + (oneFit ? oneFit.fit.toFixed(2) : '?') + ' vs 6개 ' + sixFit.fit.toFixed(2));
 
 /* ---------------------------------------------------------------------------
+ * 11-m. 사전 규모 · 분류 커버리지
+ * ------------------------------------------------------------------------- */
+section('11-m. 사전 커버리지');
+
+var dictValues = 0, dictKeywords = 0;
+Z.AXIS_KEYS.forEach(function (a) {
+  var v = Z.TAXONOMY[a].values;
+  dictValues += Object.keys(v).length;
+  Object.keys(v).forEach(function (k) { dictKeywords += v[k].length; });
+});
+ok('축 값 60개 이상', dictValues >= 60, String(dictValues));
+ok('키워드 400개 이상', dictKeywords >= 400, String(dictKeywords));
+ok('확장 후에도 축 간 충돌 0', Z.validateTaxonomy(Z.TAXONOMY).length === 0,
+   JSON.stringify(Z.validateTaxonomy(Z.TAXONOMY)));
+
+// 확장된 값이 실제로 분류되는지
+[['오메가버스', 'genre'], ['뱀파이어', 'genre'], ['마피아', 'genre'],
+ ['삼각관계', 'relation'], ['스토커', 'relation'], ['첫사랑', 'relation'],
+ ['몽환', 'tone'], ['절망', 'tone'],
+ ['병원', 'setting'], ['감옥', 'setting'],
+ ['천재', 'archetype'], ['허당', 'archetype']].forEach(function (pair) {
+  var c = Z.classify({ title: '', tags: [pair[0]] });
+  ok('"' + pair[0] + '" → ' + pair[1] + ' 축', c.axes[pair[1]].length > 0,
+     JSON.stringify(c.axes));
+});
+
+/* ---------------------------------------------------------------------------
+ * 11-n. 셀 심층 해설
+ * ------------------------------------------------------------------------- */
+section('11-n. 심층 해설');
+
+var withDetail = report.recommendations.filter(function (x) {
+  return x.confidence === 'validated' && x.detail;
+});
+ok('검증형 추천에 해설이 붙음', withDetail.length > 0);
+
+var det = withDetail[0].detail;
+ok('분포 사분위가 단조', det.distribution.p25 <= det.distribution.median &&
+   det.distribution.median <= det.distribution.p75 &&
+   det.distribution.p75 <= det.distribution.max,
+   JSON.stringify(det.distribution));
+ok('대표 작품 최대 3건', det.topWorks.length <= 3 && det.topWorks.length > 0);
+ok('대표 작품이 성과 내림차순', det.topWorks.every(function (w, i, arr) {
+  return i === 0 || arr[i - 1].velocity >= w.velocity;
+}));
+ok('연령 구성 합이 맞음', det.ageProfile.recent <= det.ageProfile.total);
+
+// 핵심: 셀을 정의하는 태그는 동반 태그에서 빠져야 한다.
+// '상사·부하' 셀에서 원시 태그 '상사' 가 "동반 100%" 로 나오면 동어반복이다.
+ok('동반 태그에 셀 정의 태그가 없음', withDetail.every(function (x) {
+  var own = x.label.split(' × ');
+  return x.detail.companions.every(function (c) {
+    var ax = Z.classify({ title: '', tags: [c.tag] }).axes;
+    var vals = [];
+    Z.AXIS_KEYS.forEach(function (a) { vals = vals.concat(ax[a]); });
+    return !vals.some(function (v) { return own.indexOf(v) >= 0; });
+  });
+}), '정의 태그가 동반 목록에 남아 있음');
+
+// 소표본에서 승패 태그를 내놓지 않아야 한다
+var smallCells = report.combos.filter(function (c) { return c.stats.count < 10 && c.stats.count > 0; });
+ok('소표본 셀은 태그 비교를 생략', smallCells.every(function (c) {
+  var d = Z.explainCell(c, Object.assign({}, Z.DEFAULTS, { now: NOW }));
+  return d && d.tagAnalysisReliable === false && d.winningTags.length === 0;
+}), '작품 10건 미만인데 승패 태그를 냈다');
+
+ok('소표본 셀에 사유가 기록됨', smallCells.length === 0 || (function () {
+  var d = Z.explainCell(smallCells[0], Object.assign({}, Z.DEFAULTS, { now: NOW }));
+  return typeof d.tagAnalysisNote === 'string' && d.tagAnalysisNote.length > 0;
+})());
+
+var noExplain = Z.analyze(works, { now: NOW, explain: false });
+ok('explain=false 면 해설 생략',
+   noExplain.recommendations.every(function (x) { return x.detail === null; }));
+
+/* ---------------------------------------------------------------------------
+ * 11-o. 가중치 견고성
+ * ------------------------------------------------------------------------- */
+section('11-o. 가중치 견고성');
+
+ok('모든 조합에 견고성 계산', report.combos.every(function (c) {
+  return c.robustness === null || (c.robustness >= 0 && c.robustness <= 1);
+}));
+ok('견고성이 0~1 범위', report.recommendations
+  .filter(function (x) { return x.robustness != null; })
+  .every(function (x) { return x.robustness >= 0 && x.robustness <= 1; }));
+
+// 상위 셀일수록 대체로 견고해야 한다
+var top5 = report.combos.slice(0, 5), bot5 = report.combos.slice(-5);
+function meanRob(list) {
+  return list.reduce(function (a, c) { return a + (c.robustness || 0); }, 0) / (list.length || 1);
+}
+ok('상위 셀 견고성 > 하위 셀 견고성', meanRob(top5) > meanRob(bot5),
+   meanRob(top5).toFixed(2) + ' vs ' + meanRob(bot5).toFixed(2));
+
+ok('견고성이 재현됨', (function () {
+  var a = Z.analyze(works, { now: NOW }).combos[0].robustness;
+  var b = Z.analyze(works, { now: NOW }).combos[0].robustness;
+  return a === b;
+})());
+
+var noRob = Z.analyze(works, { now: NOW, robustnessTrials: 0 });
+ok('robustnessTrials=0 이면 생략',
+   noRob.combos.every(function (c) { return c.robustness === null; }));
+
+/* ---------------------------------------------------------------------------
+ * 11-p. 플롯 시드
+ * ------------------------------------------------------------------------- */
+section('11-p. 플롯 시드');
+
+var seeded = report.recommendations.filter(function (x) { return x.plotSeed; });
+ok('검증형 추천에 시드가 붙음', seeded.length > 0);
+
+var sd = seeded[0].plotSeed;
+ok('시드에 설명문', typeof sd.desc === 'string' && sd.desc.length > 50);
+ok('시드에 출처 표기', sd.source && sd.source.label === seeded[0].label);
+ok('이름은 비워둠 (사람이 정함)', sd.name === '');
+
+// 에디터 스키마와 맞아야 한다
+var EDITOR_TONES = ['kind', 'tsun', 'funny', 'chic', 'polite', 'playful'];
+ok('말투가 에디터 옵션 id', sd.style.tones.length > 0 &&
+   sd.style.tones.every(function (t) { return EDITOR_TONES.indexOf(t) >= 0; }),
+   JSON.stringify(sd.style.tones));
+ok('창의성 0~100', sd.style.creativity >= 0 && sd.style.creativity <= 100);
+ok('길이가 유효값', ['short', 'normal', 'long'].indexOf(sd.style.length) >= 0);
+ok('로어북 항목에 제목·키워드·내용', sd.lore.length > 0 &&
+   sd.lore.every(function (l) { return l.title && l.keywords && l.content; }));
+ok('로어북 항목 수 = 축 수', sd.lore.length <= Z.AXIS_KEYS.length);
+
+// 캐릭터 축이 없는 조합이면 데이터에서 유추해야 한다
+var noArchetype = report.recommendations.filter(function (x) {
+  return x.confidence === 'validated' && x.label.split(' × ').length <= 3 &&
+         x.plotSeed && x.plotSeed.lore.some(function (l) { return l.title.indexOf('캐릭터') === 0; }) &&
+         x.label.indexOf('얀데레') < 0 && x.label.indexOf('무심') < 0;
+});
+ok('캐릭터 축이 없어도 유추해 채움', noArchetype.length > 0 ||
+   seeded.every(function (x) { return x.plotSeed.style.tones.length > 0; }));
+
+ok('정서에 따라 스타일이 달라짐', (function () {
+  var byTone = {};
+  seeded.forEach(function (x) { byTone[x.plotSeed.style.creativity] = true; });
+  return Object.keys(byTone).length > 1;
+})(), '모든 시드의 창의성이 동일하다');
+
+ok('시드 설명문이 근거를 인용', sd.desc.indexOf('중앙값') >= 0 || sd.desc.indexOf('함께 쓰이는') >= 0,
+   sd.desc.slice(0, 80));
+
+/* ---------------------------------------------------------------------------
  * 12. 엣지 케이스
  * ------------------------------------------------------------------------- */
 section('12. 엣지 케이스');

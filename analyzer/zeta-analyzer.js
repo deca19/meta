@@ -39,71 +39,98 @@
     genre: {
       label: '장르',
       values: {
-        '로맨스':     ['로맨스', '연애', '러브', '썸', '사랑', '연상연하', '순애'],
-        '판타지':     ['판타지', '마법', '이능', '마왕', '용사', '엘프', '수인'],
-        '학원':       ['학원', '고등학생', '대학생', '동아리', '학생'],
-        '오피스':     ['오피스', '직장', '직장인', '비서', '사장'],
-        '사극·무협':  ['사극', '무협', '조선', '궁중', '왕세자', '검객', '문파'],
-        'SF·근미래':  ['sf', '근미래', '사이버펑크', '안드로이드', '로봇'],
-        '호러·스릴러':['호러', '공포', '스릴러', '괴담', '살인', '추격'],
-        '일상·힐링':  ['일상', '힐링', '슬라이스', '카페'],
-        '미스터리':   ['미스터리', '추리', '탐정', '사건', '단서'],
-        '아이돌·연예':['아이돌', '연예인', '배우', '매니저', '데뷔', '무대']
+        '로맨스':      ['로맨스', '연애', '러브', '썸', '사랑', '연상연하', '연하남', '연상녀', '순애', '멜로'],
+        '판타지':      ['판타지', '마법', '마법사', '이능', '초능력', '마왕', '용사', '엘프', '수인', '드래곤', '기사단', '헌터', '각성'],
+        '학원':        ['학원', '고등학생', '대학생', '동아리', '학생', '교복', '입시', '학창시절', '선후배'],
+        '오피스':      ['오피스', '직장', '직장인', '비서', '사장', 'ceo', '스타트업', '인턴', '승진'],
+        '사극·무협':   ['사극', '무협', '조선', '궁중', '왕세자', '검객', '문파', '내공', '기생', '양반', '사도'],
+        'SF·근미래':   ['sf', '근미래', '사이버펑크', '안드로이드', '로봇', '인공지능', '초인류', '클론', '증강현실'],
+        '호러·스릴러': ['호러', '공포', '스릴러', '괴담', '살인', '추격', '귀신', '심령', '저주', '광기극'],
+        '일상·힐링':   ['일상', '힐링', '슬라이스', '카페', '소소', '동네', '반려동물'],
+        '미스터리':    ['미스터리', '추리', '탐정', '사건', '단서', '실종', '수사', '알리바이'],
+        '아이돌·연예': ['아이돌', '연예인', '배우', '매니저', '데뷔', '무대', '연습생', '팬미팅', '소속사'],
+        '오메가버스':  ['오메가버스', '알파', '오메가', '베타', '페로몬', '각인'],
+        '뱀파이어·오컬트': ['뱀파이어', '흡혈귀', '늑대인간', '악마', '천사', '퇴마', '오컬트', '마녀', '계약자'],
+        '범죄·느와르': ['범죄', '조직', '마피아', '갱', '보스급', '암살자', '청부', '밀수', '카르텔'],
+        '군상·성장':   ['성장', '군상극', '재기', '도전', '슬럼프', '재활']
       }
     },
     relation: {
       label: '관계',
       values: {
-        '짝사랑':     ['짝사랑', '외사랑', '고백'],
-        '소꿉친구':   ['소꿉친구', '어릴적친구', '동네친구', '남사친', '여사친'],
-        '계약관계':   ['계약', '거래', '위장결혼', '가짜연인', '결혼계약'],
-        '상사·부하':  ['상사', '부하', '직속', '사수', '팀장'],
-        '사제':       ['선생', '교사', '제자', '스승', '과외'],
-        '라이벌':     ['라이벌', '경쟁', '숙적', '대결'],
-        '원수·적대':  ['원수', '적대', '복수', '배신', '증오'],
-        '재회':       ['재회', '전남친', '전여친', '옛사랑'],
-        '동거':       ['동거', '룸메', '한집살이', '하숙'],
-        '주종':       ['주인', '집사', '하인', '기사', '주종']
+        '짝사랑':    ['짝사랑', '외사랑', '고백', '혼자만의', '애타는'],
+        '소꿉친구':  ['소꿉친구', '어릴적친구', '동네친구', '남사친', '여사친', '불알친구'],
+        '계약관계':  ['계약', '거래', '위장결혼', '가짜연인', '결혼계약', '거래관계', '조건만남'],
+        '상사·부하': ['상사', '부하', '직속', '사수', '팀장', '부장', '실장', '비서실'],
+        '사제':      ['선생', '교사', '제자', '스승', '과외', '교수', '조교', '멘토'],
+        '라이벌':    ['라이벌', '경쟁', '숙적', '대결', '맞수'],
+        '원수·적대': ['원수', '적대', '복수', '배신', '증오', '앙숙', '대립'],
+        '재회':      ['재회', '전남친', '전여친', '옛사랑', '다시만난', '헤어졌던'],
+        '동거':      ['동거', '룸메', '한집살이', '하숙', '셰어하우스'],
+        '주종':      ['주인', '집사', '하인', '기사', '주종', '시종', '메이드'],
+        '첫사랑':    ['첫사랑', '오래된마음', '초등학교때'],
+        '금지된관계':['금지된', '이루어질수없는', '비밀연애', '위험한관계', '불가능한'],
+        '삼각관계':  ['삼각관계', '사각관계', '경쟁자', '양다리'],
+        '부부·연인': ['부부', '남편', '아내', '결혼생활', '오래된연인', '권태기'],
+        '가족':      ['남매', '형제', '자매', '의붓', '입양', '사촌', '보호자'],
+        '팬·스타':   ['팬', '스타', '덕질', '최애', '사생'],
+        '구원':      ['구원', '치유자', '손내밀', '끌어올린'],
+        '스토커':    ['스토커', '추적자', '감시자']
       }
     },
     tone: {
       label: '정서',
       values: {
-        '달달':   ['달달', '설렘', '풋풋', '따뜻', '심쿵'],
-        '다크':   ['다크', '느와르', '음울', '잔혹', '어두운'],
-        '코믹':   ['코믹', '개그', '유머', '웃긴', '병맛'],
-        '집착':   ['집착', '광기', '소유욕', '감금'],
-        '애절':   ['애절', '슬픔', '눈물', '이별', '비극'],
-        '치유':   ['치유', '위로', '포근', '따스함'],
-        '자극':   ['자극', '긴장', '스릴', '아슬'],
-        '잔잔':   ['잔잔', '담백', '차분', '고요']
+        '달달':  ['달달', '설렘', '풋풋', '따뜻', '심쿵', '꿀', '알콩달콩'],
+        '다크':  ['다크', '느와르', '음울', '잔혹', '어두운', '피폐', '파멸적'],
+        '코믹':  ['코믹', '개그', '유머', '웃긴', '병맛', '드립', '유쾌'],
+        '집착':  ['집착', '광기', '소유욕', '감금', '독점욕', '병적'],
+        '애절':  ['애절', '슬픔', '눈물', '이별', '비극', '먹먹', '애틋', '절절'],
+        '치유':  ['치유', '위로', '포근', '따스함', '안식', '다독'],
+        '자극':  ['자극', '긴장', '스릴', '아슬', '숨막히는', '아찔'],
+        '잔잔':  ['잔잔', '담백', '차분', '고요', '나른'],
+        '몽환':  ['몽환', '환상적', '아득', '초현실', '꿈결'],
+        '절망':  ['절망', '무력', '체념', '나락', '바닥'],
+        '희망':  ['희망', '빛', '일어서는', '앞으로'],
+        '서정':  ['서정', '감성', '아련', '노스탤지어', '회상']
       }
     },
     setting: {
       label: '배경',
       values: {
-        '현대':       ['현대', '도시', '서울', '현실'],
-        '이세계':     ['이세계', '전생', '환생', '차원', '왕국'],
-        '아포칼립스': ['아포칼립스', '종말', '좀비', '폐허', '생존'],
-        '근미래도시': ['메가시티', '가상현실', '디스토피아'],
-        '사극배경':   ['궁', '궁궐', '한양', '무림'],
-        '학교':       ['교실', '기숙사', '학교', '캠퍼스'],
-        '회사':       ['사무실', '회사', '사내', '오피스텔'],
-        '우주':       ['우주', '함선', '행성', '스테이션']
+        '현대':       ['현대', '도시', '서울', '현실', '번화가'],
+        '이세계':     ['이세계', '전생', '환생', '차원', '왕국', '제국', '던전'],
+        '아포칼립스': ['아포칼립스', '종말', '좀비', '폐허', '생존', '방공호', '역병'],
+        '근미래도시': ['메가시티', '가상현실', '디스토피아', '슬럼가'],
+        '사극배경':   ['궁', '궁궐', '한양', '무림', '객잔', '기방'],
+        '학교':       ['교실', '기숙사', '학교', '캠퍼스', '옥상', '도서관'],
+        '회사':       ['사무실', '회사', '사내', '오피스텔', '회의실', '탕비실'],
+        '우주':       ['우주', '함선', '행성', '스테이션', '은하'],
+        '병원':       ['병원', '응급실', '요양원', '진료실', '수술실'],
+        '지방·시골':  ['시골', '바닷가', '섬마을', '산골', '읍내'],
+        '밤거리':     ['밤거리', '바', '클럽', '술집', '포차', '뒷골목'],
+        '숙소':       ['호텔', '펜션', '리조트', '민박', '별장'],
+        '폐쇄공간':   ['감옥', '지하실', '밀실', '엘리베이터', '고립']
       }
     },
     archetype: {
       label: '캐릭터',
       values: {
-        '츤데레':     ['츤데레', '까칠', '퉁명'],
-        '얀데레':     ['얀데레', '집착남', '집착녀'],
-        '다정':       ['다정', '상냥', '자상', '온화'],
-        '카리스마':   ['카리스마', '냉철', '보스', '재벌', '대표'],
-        '순정':       ['순정', '순수', '순박', '해맑'],
-        '능글':       ['능글', '느끼', '유혹', '플러팅'],
-        '무심':       ['무심', '무뚝뚝', '무표정', '건조'],
-        '열혈':       ['열혈', '패기', '직진', '저돌'],
-        '미스터리한': ['정체불명', '비밀', '수수께끼', '베일']
+        '츤데레':     ['츤데레', '까칠', '퉁명', '삐딱', '새침'],
+        '얀데레':     ['얀데레', '집착남', '집착녀', '광기남', '광기녀'],
+        '다정':       ['다정', '상냥', '자상', '온화', '부드러운', '배려심'],
+        '카리스마':   ['카리스마', '냉철', '보스', '재벌', '대표', '군주', '지배적'],
+        '순정':       ['순정', '순수', '순박', '해맑', '천진'],
+        '능글':       ['능글', '느끼', '유혹', '플러팅', '작업', '뻔뻔'],
+        '무심':       ['무심', '무뚝뚝', '무표정', '건조', '시크', '심드렁'],
+        '열혈':       ['열혈', '패기', '직진', '저돌', '열정'],
+        '미스터리한': ['정체불명', '비밀', '수수께끼', '베일', '속을알수없는'],
+        '소심':       ['소심', '내성적', '수줍', '숫기없는', '조심스러운'],
+        '도도':       ['도도', '고고', '자존심', '콧대'],
+        '천재':       ['천재', '수재', '영재', '엘리트', '완벽주의'],
+        '반항아':     ['반항', '불량', '일진', '문제아', '자유분방'],
+        '어른스러운': ['어른스러운', '든든', '성숙', '믿음직'],
+        '허당':       ['허당', '푼수', '엉뚱', '4차원', '백치미']
       }
     }
   };
@@ -159,6 +186,8 @@
     seed: 12345,            // 부트스트랩 난수 시드 — 결과 재현성을 위해 고정
     bootstrapSamples: 200,  // 신뢰구간 재표본 횟수 (0 이면 CI 계산 생략)
     conservative: false,    // true → gap 의 신뢰구간 하한으로 순위를 매긴다
+    robustnessTrials: 300,  // 가중치 민감도 시행 횟수 (0 이면 생략)
+    explain: true,          // 추천에 셀 심층 해설을 포함할지
     diversity: 0.45,        // 추천 다양성 λ (0 이면 점수순 그대로)
     cohortDays: 90,         // 코호트 한 칸의 기간
     cohortCount: 4,         // 코호트 개수 (가장 오래된 칸은 열린 구간)
@@ -191,6 +220,9 @@
    * 3. 수치 유틸
    * ========================================================================= */
   var DAY = 86400000;
+
+  /** 점수를 구성하는 지표 — 가중치 키와 백분위 키가 항상 일치해야 한다 */
+  var SCORE_KEYS = ['gap', 'momentum', 'trend', 'openness', 'newcomer', 'quality', 'staleness', 'fit'];
 
   function num(v, fallback) {
     var n = Number(v);
@@ -709,7 +741,7 @@
     };
 
     var w = opt.weights;
-    var KEYS = ['gap', 'momentum', 'trend', 'openness', 'newcomer', 'quality', 'staleness', 'fit'];
+    var KEYS = SCORE_KEYS;
 
     cells.forEach(function (c, i) {
       c.p = {};
@@ -817,6 +849,187 @@
     var valueSim = shared / Math.min(va.length, vb.length);
     var memberSim = jaccard(a.stats.ids, b.stats.ids);
     return 0.6 * valueSim + 0.4 * memberSim;
+  }
+
+  /* ===========================================================================
+   * 7-d. 셀 심층 해설 (drill-down)
+   * ========================================================================= */
+  /**
+   * "이 조합은 78점" 만으로는 무엇을 만들지 알 수 없다.
+   * 셀 안을 열어 실제로 쓸 수 있는 정보를 뽑는다.
+   *
+   *  · 성과 분포   — 중앙값 작품이 실제로 어느 정도 성적인지(평균은 히트작에 왜곡됨)
+   *  · 상·하위 작품 — 대표 사례
+   *  · 승패 태그   — 같은 셀 안에서 상위권에만 붙는 태그 / 하위권에만 붙는 태그
+   *  · 동반 태그   — 이 조합에 통상 함께 붙는 태그
+   *  · 연령 구성   — 성과가 최근 것인지 과거 유산인지
+   *
+   * 승패 태그가 이 함수의 핵심이다. "오피스 × 집착을 만들라" 보다
+   * "그 안에서 상위권은 재벌·비서를 함께 달았고 하위권은 그렇지 않다" 가 훨씬 실행 가능하다.
+   */
+  function explainCell(cell, opt) {
+    var members = cell.stats.members;
+    if (!members || !members.length) return null;
+
+    var works = members.map(function (m) { return m.work; });
+    var vels = works.map(function (w) { return w.velocity; })
+                    .sort(function (a, b) { return a - b; });
+
+    var q = function (p) {
+      if (!vels.length) return 0;
+      return vels[Math.min(vels.length - 1, Math.floor(vels.length * p))];
+    };
+
+    var sorted = works.slice().sort(function (a, b) { return b.velocity - a.velocity; });
+    var half = Math.max(1, Math.floor(sorted.length / 2));
+    var top = sorted.slice(0, half);
+    var bottom = sorted.slice(-half);
+
+    // 셀을 정의하는 값들. 원시 태그가 이 값으로 분류되면 동반/승패 태그에서 빼야 한다.
+    // 값 이름만 비교하면 안 된다 — 셀 값은 '상사·부하' 인데 태그는 '상사' 라서
+    // 이름 비교로는 걸러지지 않고 "동반 태그 상사 100%" 같은 동어반복이 남는다.
+    var ownValues = {};
+    (cell.kind === 'axis' ? [cell.value] : cell.values).forEach(function (v) { ownValues[v] = true; });
+
+    var definingCache = {};
+    function isDefining(tag) {
+      if (definingCache[tag] !== undefined) return definingCache[tag];
+      var ax = classify({ title: '', tags: [tag] }, opt.taxonomy).axes;
+      var hit = AXIS_KEYS.some(function (a) {
+        return (ax[a] || []).some(function (v) { return ownValues[v]; });
+      });
+      definingCache[tag] = hit;
+      return hit;
+    }
+
+    /** 태그 등장 비율 */
+    function tagRate(list) {
+      var counts = {};
+      list.forEach(function (w) {
+        var seen = {};
+        (w.tags || []).forEach(function (t) {
+          if (seen[t]) return;
+          seen[t] = true;
+          counts[t] = (counts[t] || 0) + 1;
+        });
+      });
+      var out = {};
+      Object.keys(counts).forEach(function (t) { out[t] = counts[t] / list.length; });
+      return out;
+    }
+
+    var topRate = tagRate(top), botRate = tagRate(bottom), allRate = tagRate(works);
+
+    // 상위권 - 하위권 등장률 차이. 셀을 정의하는 태그는 양쪽에 다 있으므로 자연히 0에 수렴한다.
+    var diffs = [];
+    var allTags = {};
+    Object.keys(topRate).forEach(function (t) { allTags[t] = true; });
+    Object.keys(botRate).forEach(function (t) { allTags[t] = true; });
+
+    // 승패 태그는 셀을 상·하위로 쪼개므로 각 절반이 충분히 커야 한다.
+    // 작품 5개 셀이면 절반이 2~3개고, 태그 하나 차이로 ±50%p 가 나온다.
+    // 그 숫자를 "상위권이 쓰는 요소" 라고 내놓으면 노이즈를 조언으로 파는 것이다.
+    var TAG_MIN_WORKS = Math.max(10, opt.minSupport * 2);
+    var tagAnalysisReliable = works.length >= TAG_MIN_WORKS;
+
+    if (tagAnalysisReliable) {
+      Object.keys(allTags).forEach(function (t) {
+        if (isDefining(t)) return;
+        var support = Math.round((allRate[t] || 0) * works.length);
+        if (support < 3) return;                     // 2건 이하 태그는 여전히 노이즈
+        diffs.push({
+          tag: t,
+          diff: (topRate[t] || 0) - (botRate[t] || 0),
+          topRate: topRate[t] || 0,
+          botRate: botRate[t] || 0,
+          support: support
+        });
+      });
+      diffs.sort(function (a, b) { return b.diff - a.diff; });
+    }
+
+    var companions = Object.keys(allRate)
+      .filter(function (t) { return !isDefining(t) && allRate[t] >= 0.3; })
+      .sort(function (a, b) { return allRate[b] - allRate[a]; })
+      .slice(0, 8)
+      .map(function (t) { return { tag: t, rate: +(allRate[t]).toFixed(2) }; });
+
+    var brief = function (w) {
+      return {
+        title: w.title,
+        velocity: +w.velocity.toFixed(1),
+        chats: w.chats,
+        ageDays: Math.round(w.ageDays),
+        tags: (w.tags || []).slice(0, 6)
+      };
+    };
+
+    return {
+      distribution: {
+        p25: +q(0.25).toFixed(1),
+        median: +q(0.5).toFixed(1),
+        p75: +q(0.75).toFixed(1),
+        max: +(vels[vels.length - 1] || 0).toFixed(1),
+        // 상위 25%와 중앙값의 배율 — 클수록 "터지면 크게 터지는" 변동성 높은 구간
+        spread: q(0.5) > 0 ? +(q(0.75) / q(0.5)).toFixed(2) : 0
+      },
+      topWorks: sorted.slice(0, 3).map(brief),
+      medianWork: brief(sorted[Math.floor(sorted.length / 2)]),
+      tagAnalysisReliable: tagAnalysisReliable,
+      tagAnalysisNote: tagAnalysisReliable ? null
+        : '작품 ' + works.length + '건으로는 상·하위 태그 비교가 노이즈입니다 (최소 ' +
+          TAG_MIN_WORKS + '건 필요).',
+      winningTags: diffs.filter(function (d) { return d.diff >= 0.25; }).slice(0, 5),
+      losingTags: diffs.filter(function (d) { return d.diff <= -0.25; }).slice(-5).reverse(),
+      companions: companions,
+      ageProfile: {
+        recent: works.filter(function (w) { return w.isRecent; }).length,
+        total: works.length,
+        medianAgeDays: Math.round(median(works.map(function (w) { return w.ageDays; })))
+      }
+    };
+  }
+
+  /* ===========================================================================
+   * 7-e. 가중치 민감도 (robustness)
+   * ========================================================================= */
+  /**
+   * 신뢰구간은 "표본이 달랐다면?" 을 다룬다.
+   * 이건 "가중치를 달리 줬다면?" 을 다룬다. 둘은 다른 불확실성이다.
+   *
+   * 가중치를 무작위로 흔들어 각 셀이 상위 N에 남는 비율을 센다.
+   * 백분위가 이미 계산돼 있으므로 재점수는 내적 한 번이라 매우 싸다.
+   *
+   * 어떤 가중치를 줘도 상위에 남는 셀이 진짜 추천이고,
+   * 특정 가중치에서만 1위인 셀은 그 가중치를 고른 사람의 취향일 뿐이다.
+   */
+  function computeRobustness(cells, opt, rand) {
+    var trials = opt.robustnessTrials;
+    if (!trials || cells.length < 2) {
+      cells.forEach(function (c) { c.robustness = null; });
+      return;
+    }
+
+    var KEYS = SCORE_KEYS;
+    var topN = Math.min(opt.topN, cells.length);
+    var hits = cells.map(function () { return 0; });
+
+    for (var t = 0; t < trials; t++) {
+      // 무작위 가중치 (합이 1이 되도록 정규화)
+      var w = [], sum = 0;
+      for (var i = 0; i < KEYS.length; i++) { var r = rand(); w.push(r); sum += r; }
+      if (sum <= 0) continue;
+
+      var scored = cells.map(function (c, idx) {
+        var s = 0;
+        for (var j = 0; j < KEYS.length; j++) s += (w[j] / sum) * c.p[KEYS[j]];
+        return { idx: idx, s: s };
+      });
+      scored.sort(function (a, b) { return b.s - a.s; });
+      for (var k = 0; k < topN; k++) hits[scored[k].idx]++;
+    }
+
+    cells.forEach(function (c, i) { c.robustness = +(hits[i] / trials).toFixed(3); });
   }
 
   /* ===========================================================================
@@ -929,6 +1142,149 @@
     var map = {};
     (item.axes || []).forEach(function (ax, i) { map[ax] = item.values[i]; });
     return map;
+  }
+
+  /* ===========================================================================
+   * 9-b. 플롯 시드 — 추천을 에디터가 바로 읽는 초안으로
+   * ========================================================================= */
+
+  /** 분석기의 캐릭터 축 → 에디터 말투 옵션 id */
+  var ARCHETYPE_TO_TONE = {
+    '다정': 'kind', '순정': 'kind', '소심': 'kind',
+    '츤데레': 'tsun', '도도': 'tsun',
+    '허당': 'funny',
+    '카리스마': 'chic', '무심': 'chic', '천재': 'chic', '미스터리한': 'chic', '얀데레': 'chic',
+    '어른스러운': 'polite',
+    '능글': 'playful', '열혈': 'playful', '반항아': 'playful'
+  };
+
+  /** 정서 축 → 에디터 스타일 수치 보정 */
+  var TONE_TO_STYLE = {
+    '몽환': { creativity: 15, length: 'long' },
+    '서정': { creativity: 5,  length: 'long' },
+    '애절': { creativity: 5,  length: 'long' },
+    '잔잔': { creativity: -15, length: 'normal' },
+    '코믹': { creativity: 5,  length: 'short', emoji: true },
+    '집착': { creativity: 10, length: 'long' },
+    '다크': { creativity: 10, length: 'long' },
+    '자극': { creativity: 10, length: 'normal' },
+    '치유': { creativity: -5, length: 'normal' },
+    '달달': { creativity: 0,  length: 'normal', emoji: true }
+  };
+
+  /**
+   * 추천 조합을 플롯 에디터가 그대로 불러올 수 있는 초안으로 변환한다.
+   * 분석 결과가 화면에서 끝나지 않고 실제 작성으로 이어지도록 하는 연결부다.
+   *
+   * 채우는 것은 뼈대뿐이다 — 이름, 설정 방향, 로어북 항목, 스타일 값.
+   * 실제 문장은 사람이 쓴다.
+   */
+  function buildPlotSeed(cell) {
+    var map = comboAxisMap(cell);
+    var style = {
+      tones: [], emoji: false, narration: true, banmal: false, safeMode: true,
+      creativity: 65, memory: 50, length: 'normal', person: 'third', language: 'ko'
+    };
+
+    // 캐릭터 축이 조합에 없으면 데이터에서 유추한다.
+    // 이 구간 작품 대부분이 '얀데레' 를 달고 있는데 말투를 기본값으로 두면
+    // 시드가 실제 시장과 어긋난 채 시작된다.
+    var archetype = map.archetype;
+    if (!archetype && cell.detail && cell.detail.companions) {
+      for (var i = 0; i < cell.detail.companions.length; i++) {
+        var c = cell.detail.companions[i];
+        if (c.rate < 0.5) break;                     // 과반이 아니면 대표성이 없다
+        var ax = classify({ title: '', tags: [c.tag] }).axes;
+        if (ax.archetype && ax.archetype.length) { archetype = ax.archetype[0]; break; }
+      }
+    }
+
+    if (archetype && ARCHETYPE_TO_TONE[archetype]) style.tones.push(ARCHETYPE_TO_TONE[archetype]);
+    if (!style.tones.length) style.tones.push('kind');
+
+    var adj = map.tone ? TONE_TO_STYLE[map.tone] : null;
+    if (adj) {
+      style.creativity = clamp(style.creativity + (adj.creativity || 0), 0, 100);
+      if (adj.length) style.length = adj.length;
+      if (adj.emoji) style.emoji = true;
+    }
+
+    // 로어북 — 축마다 한 항목. 키워드는 사전에서 그대로 가져온다.
+    var lore = [];
+    AXIS_KEYS.forEach(function (axis) {
+      var value = map[axis] || (axis === 'archetype' ? archetype : null);
+      if (!value) return;
+      var kws = (TAXONOMY[axis].values[value] || []).slice(0, 6);
+      lore.push({
+        title: TAXONOMY[axis].label + ' · ' + value,
+        keywords: kws.join(', '),
+        content: LORE_HINT[axis] ? LORE_HINT[axis](value) : (value + ' 설정을 여기에 적으세요.'),
+        open: false,
+        enabled: true
+      });
+    });
+
+    var desc = buildSeedDesc(map, cell, archetype);
+
+    return {
+      name: '',                                  // 이름은 사람이 정한다
+      desc: desc,
+      about: buildLogline(map) + ' — 시장 분석 기준 기회점수 ' + Math.round(cell.score) + '점.',
+      style: style,
+      lore: lore,
+      source: {
+        label: cell.label,
+        score: Math.round(cell.score * 10) / 10,
+        // 미개척 조합은 표본이 없어 gap 자체가 없다
+        gap: cell.gap != null ? +cell.gap.toFixed(2) : null,
+        significant: !!cell.significant,
+        confidence: cell.kind === 'whitespace' || cell.lift != null ? 'hypothesis' : 'validated'
+      }
+    };
+  }
+
+  /** 축별 로어북 작성 힌트 */
+  var LORE_HINT = {
+    genre:    function (v) { return v + ' 장르의 규칙을 적으세요. 이 세계에서 당연하게 통하는 것과 금기.'; },
+    relation: function (v) { return v + ' 관계의 시작점. 둘이 어떻게 얽혔고 무엇 때문에 벗어나지 못하는가.'; },
+    tone:     function (v) { return v + ' 정서를 유지하기 위해 피해야 할 표현과 즐겨 쓸 표현.'; },
+    setting:  function (v) { return v + ' 공간의 감각 — 소리, 냄새, 시간대, 사람들의 밀도.'; },
+    archetype:function (v) { return v + ' 성향이 드러나는 구체적 습관과 말버릇. 무너지는 순간은 언제인가.'; }
+  };
+
+  /** 시드 설명문 — 분석에서 나온 근거를 작성 지침으로 옮긴다 */
+  function buildSeedDesc(map, cell, archetype) {
+    var lines = [];
+    lines.push('[' + buildLogline(map) + ']');
+    lines.push('');
+
+    if (map.genre)    lines.push('· 장르: ' + map.genre + ' — 이 장르의 관습을 하나는 지키고 하나는 비트세요.');
+    if (archetype)    lines.push('· 성격: ' + archetype + (map.archetype ? '' : ' (같은 구간 다수가 쓰는 성향)') +
+                                 ' — 이 성향이 드러나는 장면을 첫 3턴 안에 배치하세요.');
+    if (map.relation) lines.push('· 관계: ' + map.relation + ' — 유저와의 거리를 이 관계로 고정하고 시작하세요.');
+    if (map.tone)     lines.push('· 정서: ' + map.tone + ' — 대화가 풀릴 때도 이 온도를 유지하세요.');
+    if (map.setting)  lines.push('· 배경: ' + map.setting + ' — 공간이 대화에 개입하도록 쓰세요.');
+
+    var d = cell.detail || null;
+    if (d && d.companions && d.companions.length) {
+      lines.push('');
+      lines.push('· 이 구간에서 흔히 함께 쓰이는 요소: ' +
+        d.companions.slice(0, 5).map(function (t) {
+          return t.tag + '(' + Math.round(t.rate * 100) + '%)';
+        }).join(', '));
+    }
+    if (d && d.tagAnalysisReliable && d.winningTags && d.winningTags.length) {
+      lines.push('· 상위권에만 두드러진 요소: ' +
+        d.winningTags.map(function (t) { return t.tag; }).join(', '));
+    }
+    if (d && d.distribution) {
+      lines.push('· 이 구간 중앙값 작품은 하루 약 ' + d.distribution.median +
+                 '회 대화됩니다 (상위 25%는 ' + d.distribution.p75 + '회).');
+    }
+
+    lines.push('');
+    lines.push('아래에 캐릭터의 이름, 나이, 현재 상황, 유저와의 첫 접점을 직접 채우세요.');
+    return lines.join('\n');
   }
 
   /* ===========================================================================
@@ -1074,6 +1430,8 @@
     });
 
     finalizeScores(comboCells, opt);
+    computeRobustness(comboCells, opt, rand);
+    computeRobustness(allAxisCells, opt, rand);
 
     /* --- 미개척 조합 --- */
     var whitespace = findWhitespace(works, axisCells, opt);
@@ -1108,6 +1466,8 @@
     var proven = selectDiverse(provenPool, opt.topN, opt.diversity)
       .map(function (c) {
         var map = comboAxisMap(c);
+        // 시드 설명문이 해설의 승패 태그·성과 분포를 인용하므로 먼저 계산해 셀에 붙인다
+        c.detail = opt.explain ? explainCell(c, opt) : null;
         return {
           type: c.gap >= 1.05 ? 'proven-gap' : 'solid',
           confidence: 'validated',
@@ -1117,6 +1477,9 @@
           logline: buildLogline(map),
           significant: c.significant,
           trend: c.trendLabel,
+          robustness: c.robustness,
+          detail: c.detail,
+          plotSeed: buildPlotSeed(c),
           evidence: {
             works: c.stats.count,
             supplyShare: +(c.supplyShare * 100).toFixed(1),
@@ -1142,9 +1505,16 @@
         return {
           type: 'whitespace',
           confidence: 'hypothesis',
+          kind: 'whitespace',
           label: c.label,
           score: Math.round(c.score * 10) / 10,
           logline: buildLogline(map),
+          // 스키마를 검증형 추천과 맞춘다. 표본이 없어 해설·견고성은 계산할 수 없다.
+          significant: false,
+          trend: null,
+          robustness: null,
+          detail: null,
+          plotSeed: buildPlotSeed(c),
           evidence: {
             works: c.observed,
             expected: c.expected,
@@ -1441,6 +1811,8 @@
     parseCount: parseCount,
     parseRelativeDate: parseRelativeDate,
     parsePasted: parsePasted,
+    explainCell: explainCell,
+    buildPlotSeed: buildPlotSeed,
     // 테스트/확장을 위해 내부 함수도 노출
     _internal: {
       percentileRank: percentileRank,

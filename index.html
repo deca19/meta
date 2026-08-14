@@ -2424,6 +2424,68 @@ function bindHeader() {
 /* =========================================================================
    9) Boot — 초기화
    ========================================================================= */
+/* =========================================================================
+   분석기에서 보낸 플롯 초안 수신
+   ------------------------------------------------------------------------
+   덮어쓰기가 일어나므로 반드시 확인을 받는다.
+   ========================================================================= */
+const SEED_KEY = 'zeta.plot.seed';
+
+function checkPlotSeed() {
+  let seed;
+  try {
+    const raw = localStorage.getItem(SEED_KEY);
+    if (!raw) return;
+    seed = JSON.parse(raw);
+    localStorage.removeItem(SEED_KEY);      // 한 번만 묻는다
+  } catch (e) { return; }
+  if (!seed || !seed.source) return;
+
+  const hasWork = S().prompt.name || S().prompt.desc ||
+                  S().intro.messages.length || S().lore.entries.length;
+
+  const isHypothesis = seed.source.confidence === 'hypothesis';
+
+  openModal({
+    title: '분석기 초안을 불러올까요?',
+    desc: '"' + seed.source.label + '" (기회점수 ' + seed.source.score + '점)\n\n' +
+          (isHypothesis
+            ? '⚠ 이 조합은 기존 작품이 거의 없는 가설입니다. 수요가 없어서 비어 있을 수도 있어요.\n\n'
+            : '') +
+          '설명·소개·스타일·로어북이 채워집니다.' +
+          (hasWork ? '\n\n현재 작성 중인 내용은 덮어쓰기됩니다.' : ''),
+    okText: '불러오기',
+    cancelText: '취소',
+    danger: hasWork,
+    onOk: () => applyPlotSeed(seed)
+  });
+}
+
+function applyPlotSeed(seed) {
+  const st = S();
+
+  st.prompt.desc = seed.desc || '';
+  st.about.text = (seed.about || '').slice(0, CONFIG.ABOUT_MAX);
+
+  if (seed.style) Object.assign(st.style, seed.style);
+
+  // 로어북은 덮어쓰지 않고 앞에 붙인다 — 기존 항목을 잃을 이유가 없다
+  if (Array.isArray(seed.lore)) {
+    const seeded = seed.lore.map(e => ({
+      id: uid('lore'),
+      title: e.title || '', keywords: e.keywords || '', content: e.content || '',
+      open: false, enabled: true
+    }));
+    st.lore.entries = seeded.concat(st.lore.entries);
+  }
+
+  st.ui.tab = 'prompt';
+  Store.save(true);
+  applyTheme(); renderTabs(); renderView();
+  $('#hd-title').textContent = st.prompt.name.trim() || '플롯 만들기';
+  toast('분석기 초안을 불러왔어요');
+}
+
 function boot() {
   Store.load();
   applyTheme();
@@ -2478,6 +2540,7 @@ function boot() {
 
   renderTabs();
   renderView();
+  checkPlotSeed();
 }
 
 document.addEventListener('DOMContentLoaded', boot);

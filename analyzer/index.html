@@ -158,6 +158,51 @@ h2 { font-size:15px; font-weight:800; letter-spacing:-.3px; margin:0 0 4px; }
   background:var(--bad-soft); color:var(--bad);
 }
 
+/* ---------- 가중치 견고성 ---------- */
+.rb { display:flex; align-items:center; gap:8px; margin-top:11px; font-size:10.5px; }
+.rb-l { color:var(--dim); flex:0 0 auto; }
+.rb-track { flex:1; height:5px; background:var(--panel2); border-radius:99px; overflow:hidden; }
+.rb-fill { display:block; height:100%; border-radius:99px; }
+.rb-fill.hi { background:var(--good); } .rb-fill.mid { background:var(--warn); } .rb-fill.lo { background:var(--bad); }
+.rb-v { font-weight:800; font-variant-numeric:tabular-nums; flex:0 0 auto; }
+.rb-v.hi { color:var(--good); } .rb-v.mid { color:var(--warn); } .rb-v.lo { color:var(--bad); }
+.rb-m { color:var(--dim); flex:0 0 auto; }
+
+/* ---------- 심층 해설 ---------- */
+.dt { margin-top:12px; border-top:1px solid var(--line); padding-top:10px; }
+.dt summary {
+  cursor:pointer; font-size:11.5px; font-weight:700; color:var(--accent);
+  list-style:none; user-select:none;
+}
+.dt summary::-webkit-details-marker { display:none; }
+.dt summary::before { content:'▸ '; }
+.dt[open] summary::before { content:'▾ '; }
+.dt-body { margin-top:10px; display:flex; flex-direction:column; gap:9px; }
+.dt-row { display:grid; grid-template-columns:76px 1fr; gap:10px; font-size:11px; align-items:start; }
+.dt-k { color:var(--dim); font-weight:700; }
+.dt-v { color:var(--sub); line-height:1.65; }
+.dt-v b { color:var(--text); font-variant-numeric:tabular-nums; }
+.dt-u { color:var(--dim); font-size:10px; }
+.dt-na { color:var(--warn); }
+.dt-tag {
+  display:inline-block; margin:0 4px 4px 0; padding:2px 7px; border-radius:5px;
+  background:var(--panel2); color:var(--sub); font-size:10px; font-weight:600;
+}
+.dt-tag.win { background:var(--good-soft); color:var(--good); }
+.dt-tag.lose { background:var(--bad-soft); color:var(--bad); }
+.dt-w { margin-bottom:3px; }
+.dt-w b { color:var(--text); font-weight:700; }
+
+/* 플롯 시작 버튼 */
+.seedbtn {
+  width:100%; margin-top:12px; padding:11px;
+  background:var(--accent-soft); color:var(--accent);
+  border:1px solid transparent; border-radius:10px;
+  font-size:12px; font-weight:700; cursor:pointer;
+  transition:background .18s ease, color .18s ease;
+}
+.seedbtn:hover { background:var(--accent); color:#fff; }
+
 /* ---------- 테이블 ---------- */
 .tblwrap { overflow-x:auto; border:1px solid var(--line); border-radius:12px; background:var(--panel); }
 table { width:100%; border-collapse:collapse; font-size:12.5px; min-width:640px; }
@@ -369,6 +414,7 @@ function render() {
     renderTiles(r) + renderWarnings(r) + renderRecommendations(r) +
     renderAxis(r) + renderSaturated(r) + renderWhitespace(r) + renderUnmapped(r);
   bindAxisTabs();
+  bindSeedButtons();
 }
 
 /* 요약 타일 */
@@ -404,7 +450,7 @@ function renderRecommendations(r) {
     return '<section><h2>추천 주제</h2><div class="warn-box">' +
       '조건을 만족하는 조합이 없습니다. 최소 표본 수를 낮추거나 데이터를 더 모아보세요.</div></section>';
   }
-  var cards = r.recommendations.map(function (x) {
+  var cards = r.recommendations.map(function (x, idx) {
     var e = x.evidence;
     var bars = x.percentiles ? renderBars(x.percentiles) : '';
     var evd = e.gap !== undefined
@@ -429,10 +475,13 @@ function renderRecommendations(r) {
           (x.trend ? '<span class="tag trend-' + x.trend + '">' + trendLabel(x.trend) + '</span>' : '') +
         '</div>' +
       '</div>' +
-      (e.gapCI ? renderCI(e.gap, e.gapCI, x.significant) : '') + bars +
+      (e.gapCI ? renderCI(e.gap, e.gapCI, x.significant) : '') +
+      (x.robustness != null ? renderRobustness(x.robustness) : '') + bars +
       '<div class="evd">' + evd + '</div>' +
       (x.risks.length ? '<div class="risks">' + x.risks.map(function (v) {
         return '<span class="risk">' + esc(v.label) + '</span>'; }).join('') + '</div>' : '') +
+      (x.detail ? renderDetail(x, idx) : '') +
+      (x.plotSeed ? '<button class="seedbtn" data-seed="' + idx + '">이 주제로 플롯 시작하기 →</button>' : '') +
     '</div>';
   }).join('');
 
@@ -447,6 +496,74 @@ var BAR_LABELS = { gap:'수요/공급', momentum:'신작 성과', trend:'추세'
 
 function trendLabel(t) {
   return t === 'rising' ? '상승 추세' : (t === 'declining' ? '하락 추세' : '보합');
+}
+
+/**
+ * 가중치 민감도.
+ * 신뢰구간이 "표본이 달랐다면?" 이라면 이건 "가중치를 달리 줬다면?" 이다.
+ * 특정 가중치에서만 1위인 추천은 데이터가 아니라 설정의 결과다.
+ */
+function renderRobustness(v) {
+  var pct = Math.round(v * 100);
+  var cls = pct >= 70 ? 'hi' : (pct >= 35 ? 'mid' : 'lo');
+  var msg = pct >= 70 ? '가중치를 바꿔도 유지됨'
+          : (pct >= 35 ? '가중치에 따라 달라짐' : '특정 가중치에서만 상위');
+  return '<div class="rb">' +
+    '<span class="rb-l">가중치 견고성</span>' +
+    '<span class="rb-track"><span class="rb-fill ' + cls + '" style="width:' + pct + '%"></span></span>' +
+    '<span class="rb-v ' + cls + '">' + pct + '%</span>' +
+    '<span class="rb-m">' + msg + '</span>' +
+  '</div>';
+}
+
+/**
+ * 셀 심층 해설 — 점수가 아니라 "무엇을 만들지" 에 답하는 부분.
+ */
+function renderDetail(x, idx) {
+  var d = x.detail;
+  var rows = [];
+
+  rows.push('<div class="dt-row"><span class="dt-k">성과 분포</span><span class="dt-v">' +
+    '중앙 <b>' + d.distribution.median + '</b> · 상위25% <b>' + d.distribution.p75 +
+    '</b> · 최고 <b>' + d.distribution.max + '</b> <span class="dt-u">일평균 대화</span></span></div>');
+
+  if (d.companions.length) {
+    rows.push('<div class="dt-row"><span class="dt-k">함께 쓰이는 요소</span><span class="dt-v">' +
+      d.companions.slice(0, 6).map(function (t) {
+        return '<span class="dt-tag">' + esc(t.tag) + ' ' + Math.round(t.rate * 100) + '%</span>';
+      }).join('') + '</span></div>');
+  }
+
+  if (d.tagAnalysisReliable) {
+    if (d.winningTags.length) {
+      rows.push('<div class="dt-row"><span class="dt-k">상위권 요소</span><span class="dt-v">' +
+        d.winningTags.map(function (t) {
+          return '<span class="dt-tag win">' + esc(t.tag) + ' +' + Math.round(t.diff * 100) + '%p</span>';
+        }).join('') + '</span></div>');
+    }
+    if (d.losingTags.length) {
+      rows.push('<div class="dt-row"><span class="dt-k">하위권 요소</span><span class="dt-v">' +
+        d.losingTags.map(function (t) {
+          return '<span class="dt-tag lose">' + esc(t.tag) + ' ' + Math.round(t.diff * 100) + '%p</span>';
+        }).join('') + '</span></div>');
+    }
+  } else {
+    rows.push('<div class="dt-row"><span class="dt-k">상·하위 비교</span>' +
+      '<span class="dt-v dt-na">' + esc(d.tagAnalysisNote) + '</span></div>');
+  }
+
+  rows.push('<div class="dt-row"><span class="dt-k">대표 작품</span><span class="dt-v">' +
+    d.topWorks.map(function (w) {
+      return '<div class="dt-w"><b>' + esc(w.title) + '</b> 일 ' + w.velocity +
+             '회 · ' + w.ageDays + '일차</div>';
+    }).join('') + '</span></div>');
+
+  rows.push('<div class="dt-row"><span class="dt-k">연령 구성</span><span class="dt-v">' +
+    d.ageProfile.total + '건 중 최근 90일 <b>' + d.ageProfile.recent + '</b>건 · 중앙 ' +
+    d.ageProfile.medianAgeDays + '일</span></div>');
+
+  return '<details class="dt"><summary>자세히 보기</summary>' +
+         '<div class="dt-body">' + rows.join('') + '</div></details>';
 }
 
 /**
@@ -583,6 +700,22 @@ function renderUnmapped(r) {
 }
 
 /* ---------- 이벤트 ---------- */
+/** 추천을 플롯 에디터로 보낸다 */
+function bindSeedButtons() {
+  document.querySelectorAll('[data-seed]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var rec = state.report.recommendations[Number(btn.dataset.seed)];
+      if (!rec || !rec.plotSeed) return;
+      try {
+        localStorage.setItem('zeta.plot.seed', JSON.stringify(rec.plotSeed));
+        location.href = '../index.html';
+      } catch (e) {
+        alert('저장소 사용이 막혀 있어 에디터로 보낼 수 없습니다.');
+      }
+    });
+  });
+}
+
 function bindAxisTabs() {
   document.querySelectorAll('[data-axis]').forEach(function (b) {
     b.addEventListener('click', function () {
