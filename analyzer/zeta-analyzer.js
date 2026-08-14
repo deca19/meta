@@ -395,6 +395,9 @@
         likes: likes,
         velocity: velocity,
         followers: Math.max(0, num(w.creatorFollowers)),
+        // 수집 출처 — 표본 편향 판정에 쓴다 (없으면 unknown)
+        source: String(w.source || 'unknown'),
+        rank: w.rank != null ? num(w.rank) : null,
         demand: velocity,          // 아래에서 윈저화로 덮어씀
         quality: quality,
         // 코호트 인덱스: 0 = 가장 오래된 칸(열린 구간), 마지막 = 최신
@@ -1155,6 +1158,35 @@
     /* --- 경고 --- */
     var warnings = [];
 
+    /* --- 표본 출처 점검 ---
+     * 이 엔진에서 가장 중요한 경고다. 어떤 지표를 정교하게 다듬어도
+     * 인기순 목록에서만 긁어온 표본이면 결론은 구조적으로 낙관 편향된다.
+     * 반대로 최신순 목록은 성과와 무관하게 노출되므로 편향이 없다. */
+    var sourceMix = {};
+    works.forEach(function (w) { sourceMix[w.source] = (sourceMix[w.source] || 0) + 1; });
+
+    var popularN = sourceMix.popular || 0;
+    var newN     = sourceMix['new'] || 0;
+    var knownN   = works.length - (sourceMix.unknown || 0);
+
+    if (knownN > 0) {
+      var popularRatio = popularN / knownN;
+      if (popularRatio > 0.7 && opt.sampling !== 'ranked') {
+        warnings.push('표본의 ' + Math.round(popularRatio * 100) +
+          '%가 인기순 목록에서 수집됐는데 sampling 이 census 로 설정돼 있습니다. ' +
+          'ranked 로 바꾸지 않으면 실패작이 보이지 않아 gap 이 전반적으로 부풀려집니다.');
+      }
+      if (newN / knownN > 0.6 && opt.sampling === 'ranked') {
+        warnings.push('표본의 대부분이 최신순 목록에서 수집됐습니다. 최신순은 성과와 무관하게 ' +
+          '노출되므로 생존편향이 없습니다 — sampling 을 census 로 두는 편이 정확합니다.');
+      }
+      if (newN === 0 && popularN > 0) {
+        warnings.push('최신순 목록에서 수집한 표본이 없습니다. 인기 목록만으로는 "실패한 작품" 이 ' +
+          '표본에 들어오지 않아 어떤 보정으로도 완전히 복구할 수 없습니다. ' +
+          '최신순 탭에서 성과와 무관하게 100건 정도만 더 모으면 추정 품질이 크게 올라갑니다.');
+      }
+    }
+
     var collisions = validateTaxonomy(opt.taxonomy || TAXONOMY);
     if (collisions.length) {
       warnings.push('사전 오류: ' + collisions.slice(0, 5).map(function (c) {
@@ -1207,6 +1239,7 @@
         diversity: opt.diversity,
         bootstrapSamples: opt.bootstrapSamples,
         myWorksCount: myNorm ? myNorm.works.length : 0,
+        sourceMix: sourceMix,
         cohortTotals: cohortTotals.map(function (v) { return +v.toFixed(1); }),
         significantCells: comboCells.filter(function (c) { return c.significant; }).length,
         totalChats: works.reduce(function (a, w) { return a + w.chats; }, 0),
@@ -1224,6 +1257,125 @@
       warnings: warnings,
       works: works
     };
+  }
+
+  /* ===========================================================================
+   * 10-b. 수집 현장용 파서
+   *   앱 화면에 보이는 값은 "1.2만", "3일 전" 같은 형태다.
+   *   손으로 환산하다 보면 반드시 틀리므로 엔진이 책임진다.
+   * ========================================================================= */
+
+  /** "1.2만" → 12000, "12.3K" → 12300, "1,234" → 1234 */
+  function parseCount(input) {
+    if (typeof input === 'number') return isFinite(input) ? Math.max(0, Math.round(input)) : 0;
+    var s = String(input == null ? '' : input).toLowerCase().replace(/[,\s]/g, '');
+    if (!s) return 0;
+
+    var m = s.match(/(-?[0-9]*\.?[0-9]+)(억|만|천|k|m|b)?/);
+    if (!m) return 0;
+
+    var v = parseFloat(m[1]);
+    if (!isFinite(v)) return 0;
+
+    var mult = { '억': 1e8, '만': 1e4, '천': 1e3, k: 1e3, m: 1e6, b: 1e9 }[m[2]] || 1;
+    return Math.max(0, Math.round(v * mult));
+  }
+
+  /** "3일 전" → ISO 날짜. 절대 날짜가 오면 그대로 정규화한다. */
+  function parseRelativeDate(input, now) {
+    var base = now || Date.now();
+    var s = String(input == null ? '' : input).trim();
+    if (!s) return null;
+
+    var iso = function (ms) { return new Date(ms).toISOString().slice(0, 10); };
+
+    if (/방금|지금/.test(s)) return iso(base);
+    if (/오늘/.test(s))      return iso(base);
+    if (/어제/.test(s))      return iso(base - DAY);
+    if (/그저께|그제/.test(s)) return iso(base - 2 * DAY);
+
+    // 연도가 보이면 절대 날짜로 해석 (2026-05-01, 2026.05.01, 2026/5/1)
+    if (/\d{4}/.test(s)) {
+      var abs = Date.parse(s.replace(/[.\/]/g, '-').replace(/-+$/, ''));
+      if (isFinite(abs)) return iso(abs);
+    }
+
+    var m = s.match(/(\d+)\s*(초|분|시간|일|주|개월|달|년)/);
+    if (!m) return null;
+
+    var n = parseInt(m[1], 10);
+    var days = { '초': 0, '분': 0, '시간': 0, '일': 1, '주': 7, '개월': 30, '달': 30, '년': 365 }[m[2]];
+    return iso(base - n * days * DAY);
+  }
+
+  /**
+   * 붙여넣은 한 덩어리 텍스트에서 작품 정보를 추출한다.
+   * 앱에서 카드를 복사하면 제목·해시태그·숫자·상대날짜가 뒤섞여 들어온다.
+   */
+  function parsePasted(text, now) {
+    var raw = String(text == null ? '' : text).replace(/\r/g, '');
+    var lines = raw.split('\n').map(function (l) { return l.trim(); }).filter(Boolean);
+    if (!lines.length) return null;
+
+    var tags = [];
+    var out = { title: '', tags: [], chats: 0, likes: 0, createdAt: null };
+
+    // 해시태그 수집 후 본문에서 제거
+    var body = lines.map(function (line) {
+      return line.replace(/#([^\s#,]+)/g, function (_, t) { tags.push(t); return ' '; });
+    });
+
+    // 숫자 후보 — 큰 값을 대화수, 그 다음을 좋아요로 본다
+    var nums = [];
+    body.forEach(function (line) {
+      var re = /([0-9][0-9,.]*\s*(?:억|만|천|k|m|b)?)/gi;
+      var m;
+      while ((m = re.exec(line))) {
+        if (/^\d{4}[-./]/.test(m[1])) continue;          // 날짜는 제외
+        var v = parseCount(m[1]);
+        if (v > 0) nums.push(v);
+      }
+    });
+    nums.sort(function (a, b) { return b - a; });
+    out.chats = nums[0] || 0;
+    out.likes = nums[1] || 0;
+
+    // 날짜
+    for (var i = 0; i < lines.length; i++) {
+      var d = parseRelativeDate(lines[i], now);
+      if (d) { out.createdAt = d; break; }
+    }
+
+    // 제목 — 숫자/태그가 아닌 첫 줄
+    for (var j = 0; j < lines.length; j++) {
+      var cand = lines[j].replace(/#([^\s#,]+)/g, '').trim();
+      if (cand.length >= 2 && !/^[0-9,.\s만천억kmb%]+$/i.test(cand) &&
+          !parseRelativeDate(cand, now)) {
+        out.title = cand;
+        break;
+      }
+    }
+
+    // 해시태그가 없으면 쉼표 구분 줄을 태그로 간주
+    if (!tags.length) {
+      lines.forEach(function (line) {
+        if (line.indexOf(',') > 0 && line.length < 80 && line !== out.title) {
+          line.split(',').forEach(function (t) {
+            var v = t.trim();
+            if (v && v.length < 20) tags.push(v);
+          });
+        }
+      });
+    }
+
+    var seen = {};
+    out.tags = tags.filter(function (t) {
+      var k = t.toLowerCase();
+      if (seen[k]) return false;
+      seen[k] = true; return true;
+    });
+
+    return out;
   }
 
   /* ===========================================================================
@@ -1264,9 +1416,12 @@
           title: o.title,
           tags: (o.tags || '').split(/[|,]/).map(function (t) { return t.trim(); }).filter(Boolean),
           createdAt: o.createdAt,
-          chats: num(o.chats),
-          likes: num(o.likes),
-          creatorFollowers: num(o.creatorFollowers)
+          // 수집 화면의 표기를 그대로 붙여넣어도 되도록 관대하게 파싱한다
+          chats: parseCount(o.chats),
+          likes: parseCount(o.likes),
+          creatorFollowers: parseCount(o.creatorFollowers),
+          source: o.source || 'unknown',
+          rank: o.rank ? num(o.rank) : null
         };
       });
   }
@@ -1283,6 +1438,9 @@
     parseCSV: parseCSV,
     validateTaxonomy: validateTaxonomy,
     selectDiverse: selectDiverse,
+    parseCount: parseCount,
+    parseRelativeDate: parseRelativeDate,
+    parsePasted: parsePasted,
     // 테스트/확장을 위해 내부 함수도 노출
     _internal: {
       percentileRank: percentileRank,

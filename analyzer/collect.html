@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ZETA 작품 수집기</title>
+<link rel="stylesheet" as="style" crossorigin
+      href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
+<style>
+/* =============================================================================
+   수집기 — 앱 화면을 보면서 작품 정보를 빠르게 기록하는 도구
+   설계 목표: 손이 키보드를 떠나지 않는 것. 100건을 20분 안에.
+   ============================================================================= */
+:root {
+  --bg:#0b0b0d; --panel:#141417; --panel2:#1b1b1f; --line:#26262c;
+  --text:#f2f2f4; --sub:#9b9ba4; --dim:#6c6c76;
+  --accent:#7c5cff; --accent-soft:rgba(124,92,255,.15);
+  --good:#35d07f; --warn:#f5a524; --bad:#ff5a5f;
+  --good-soft:rgba(53,208,127,.14); --warn-soft:rgba(245,165,36,.14); --bad-soft:rgba(255,90,95,.14);
+}
+* { box-sizing:border-box; }
+body {
+  margin:0; background:var(--bg); color:var(--text);
+  font-family:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased; line-height:1.55;
+}
+.wrap { max-width:1180px; margin:0 auto; padding:26px 18px 90px; }
+
+h1 { font-size:21px; font-weight:800; letter-spacing:-.5px; margin:0 0 5px; }
+.lede { font-size:13px; color:var(--sub); margin:0 0 18px; }
+h2 { font-size:14px; font-weight:800; margin:0 0 4px; letter-spacing:-.3px; }
+.sub { font-size:11.5px; color:var(--dim); margin:0 0 12px; line-height:1.6; }
+
+.grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.15fr); gap:16px; align-items:start; }
+@media (max-width:900px) { .grid { grid-template-columns:1fr; } }
+
+.panel { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:16px; }
+.panel + .panel { margin-top:14px; }
+
+label.f { display:block; font-size:10.5px; font-weight:700; color:var(--sub); margin-bottom:6px; letter-spacing:.2px; }
+input[type=text], input[type=number], textarea, select {
+  width:100%; background:var(--panel2); border:1px solid var(--line); color:var(--text);
+  border-radius:9px; padding:10px 11px; font-size:13px; font-family:inherit;
+  transition:border-color .16s ease, box-shadow .16s ease;
+}
+input:focus, textarea:focus, select:focus {
+  outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft);
+}
+textarea { resize:vertical; min-height:76px; line-height:1.6; }
+.row { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.row3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; }
+.fld { margin-bottom:11px; }
+
+button {
+  background:var(--accent); color:#fff; border:none; border-radius:9px;
+  padding:10px 15px; font-size:12.5px; font-weight:700; font-family:inherit; cursor:pointer;
+  transition:filter .16s ease, transform .1s ease;
+}
+button:hover { filter:brightness(1.1); }
+button:active { transform:scale(.97); }
+button.ghost { background:var(--panel2); color:var(--text); border:1px solid var(--line); }
+button.sm { padding:7px 11px; font-size:11.5px; }
+button:disabled { opacity:.4; cursor:not-allowed; }
+.btnrow { display:flex; gap:8px; flex-wrap:wrap; }
+
+kbd {
+  display:inline-block; padding:1px 5px; border-radius:4px; font-size:10px;
+  background:var(--panel2); border:1px solid var(--line); color:var(--sub);
+  font-family:inherit; font-weight:700;
+}
+
+/* ---------- 태그 입력 ---------- */
+.taginput {
+  background:var(--panel2); border:1px solid var(--line); border-radius:9px;
+  padding:7px 8px; display:flex; flex-wrap:wrap; gap:5px; align-items:center;
+  min-height:42px; transition:border-color .16s ease, box-shadow .16s ease;
+}
+.taginput.focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
+.taginput input { flex:1; min-width:90px; background:none; border:none; padding:4px 2px; font-size:12.5px; }
+.taginput input:focus { box-shadow:none; }
+.tg {
+  display:inline-flex; align-items:center; gap:5px;
+  padding:3px 8px; border-radius:6px; font-size:11.5px; font-weight:600;
+  background:var(--accent-soft); color:var(--accent);
+}
+.tg.unmapped { background:var(--warn-soft); color:var(--warn); }
+.tg b { cursor:pointer; opacity:.65; font-weight:800; }
+.tg b:hover { opacity:1; }
+
+.ac { position:relative; }
+.aclist {
+  position:absolute; z-index:30; left:0; right:0; top:100%; margin-top:5px;
+  background:var(--panel2); border:1px solid var(--line); border-radius:10px;
+  max-height:210px; overflow-y:auto; box-shadow:0 14px 34px rgba(0,0,0,.5);
+}
+.acitem { padding:9px 12px; font-size:12.5px; cursor:pointer; display:flex; justify-content:space-between; gap:10px; }
+.acitem:hover, .acitem.on { background:var(--accent-soft); }
+.acitem .ax { font-size:10px; color:var(--dim); }
+
+/* ---------- 축 커버리지 ---------- */
+.cover { display:flex; gap:6px; flex-wrap:wrap; margin-top:9px; }
+.cv {
+  font-size:10.5px; font-weight:700; padding:4px 9px; border-radius:6px;
+  background:var(--panel2); color:var(--dim); border:1px solid var(--line);
+}
+.cv.on { background:var(--good-soft); color:var(--good); border-color:transparent; }
+
+/* ---------- 상태 배너 ---------- */
+.note {
+  border-radius:10px; padding:11px 13px; font-size:11.5px; line-height:1.65; margin-top:11px;
+}
+.note.info { background:var(--accent-soft); color:#c9bcff; }
+.note.warn { background:var(--warn-soft); color:#ffd89b; }
+.note.bad  { background:var(--bad-soft);  color:#ffb3b5; }
+.note.ok   { background:var(--good-soft); color:#9ae9c4; }
+.note b { color:#fff; }
+
+/* ---------- 진행도 ---------- */
+.stats { display:grid; grid-template-columns:repeat(4,1fr); gap:9px; margin-bottom:12px; }
+.st { background:var(--panel2); border-radius:10px; padding:10px 11px; }
+.st .k { font-size:9.5px; color:var(--dim); font-weight:700; }
+.st .v { font-size:18px; font-weight:800; margin-top:2px; font-variant-numeric:tabular-nums; letter-spacing:-.4px; }
+.meter { height:7px; border-radius:99px; background:var(--panel2); overflow:hidden; margin:10px 0 7px; }
+.meter > i { display:block; height:100%; border-radius:99px; background:var(--accent); transition:width .45s cubic-bezier(.2,.8,.3,1); }
+.meter > i.ok { background:var(--good); }
+
+/* ---------- 목록 ---------- */
+.tblwrap { max-height:430px; overflow:auto; border:1px solid var(--line); border-radius:11px; }
+table { width:100%; border-collapse:collapse; font-size:12px; }
+th, td { padding:8px 10px; text-align:left; border-bottom:1px solid var(--line); }
+th { position:sticky; top:0; z-index:2; background:var(--panel2); font-size:10px; color:var(--dim); font-weight:700; }
+tbody tr:hover { background:var(--panel2); }
+td.num { text-align:right; font-variant-numeric:tabular-nums; }
+td.t { max-width:190px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.del { color:var(--dim); cursor:pointer; font-weight:800; padding:0 4px; }
+.del:hover { color:var(--bad); }
+.src {
+  font-size:9.5px; font-weight:700; padding:2px 6px; border-radius:5px;
+  background:var(--panel2); color:var(--dim);
+}
+.src.popular { background:var(--warn-soft); color:var(--warn); }
+.src.new { background:var(--good-soft); color:var(--good); }
+.empty { padding:34px; text-align:center; color:var(--dim); font-size:12.5px; }
+footer { margin-top:30px; font-size:11px; color:var(--dim); line-height:1.8; }
+code { background:var(--panel2); padding:1.5px 5px; border-radius:4px; font-size:10.5px; }
+.toast {
+  position:fixed; left:50%; bottom:26px; transform:translateX(-50%);
+  background:var(--panel2); border:1px solid var(--line); color:var(--text);
+  padding:10px 16px; border-radius:10px; font-size:12.5px; font-weight:600;
+  box-shadow:0 14px 34px rgba(0,0,0,.5); z-index:80;
+  animation:tin .26s ease both;
+}
+@keyframes tin { from { opacity:0; transform:translate(-50%,12px); } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>ZETA 작품 수집기</h1>
+  <p class="lede">앱 화면을 보면서 기록하면 분석기가 바로 읽는 CSV/JSON이 나옵니다. 모든 입력은 자동 저장됩니다.</p>
+
+  <div class="stats" id="stats"></div>
+  <div class="meter"><i id="meter-fill" style="width:0%"></i></div>
+  <div id="adequacy"></div>
+
+  <div class="grid" style="margin-top:16px">
+
+    <!-- ===================== 왼쪽: 입력 ===================== -->
+    <div>
+      <div class="panel">
+        <h2>수집 출처</h2>
+        <p class="sub">이 선택이 결과의 신뢰도를 결정합니다. 아래 설명을 꼭 읽어주세요.</p>
+        <select id="source">
+          <option value="new">최신순 탭 — 편향 없음 (권장)</option>
+          <option value="popular">인기순 탭 — 생존편향 있음</option>
+          <option value="recommended">추천 피드 — 노출 편향 있음</option>
+          <option value="search">검색 결과 — 키워드 편향 있음</option>
+        </select>
+        <div id="source-note"></div>
+      </div>
+
+      <div class="panel">
+        <h2>빠른 붙여넣기</h2>
+        <p class="sub">앱에서 카드 텍스트를 복사해 붙여넣으면 제목·태그·숫자·날짜를 알아서 나눕니다.
+          <kbd>Ctrl</kbd>+<kbd>Enter</kbd> 로 즉시 반영.</p>
+        <textarea id="paste" placeholder="예)&#10;차가운 팀장님&#10;#오피스 #상사 #집착&#10;대화 12.3만 · 좋아요 8,420&#10;3일 전"></textarea>
+        <div class="btnrow" style="margin-top:9px">
+          <button class="sm" id="btn-parse">분석해서 채우기</button>
+          <button class="ghost sm" id="btn-clear-paste">지우기</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>작품 입력</h2>
+        <p class="sub"><kbd>Enter</kbd> 로 저장하고 다음 작품으로 넘어갑니다.</p>
+
+        <div class="fld">
+          <label class="f" for="title">제목</label>
+          <input type="text" id="title" placeholder="작품 제목" autocomplete="off" />
+        </div>
+
+        <div class="fld">
+          <label class="f">태그 <span style="color:var(--dim);font-weight:500">— 입력 후 Enter · 쉼표로 여러 개</span></label>
+          <div class="ac">
+            <div class="taginput" id="taginput">
+              <input type="text" id="tagin" placeholder="오피스, 집착…" autocomplete="off" />
+            </div>
+            <div id="aclist"></div>
+          </div>
+          <div class="cover" id="cover"></div>
+        </div>
+
+        <div class="row3 fld">
+          <div>
+            <label class="f" for="chats">대화수</label>
+            <input type="text" id="chats" placeholder="12.3만" autocomplete="off" />
+          </div>
+          <div>
+            <label class="f" for="likes">좋아요</label>
+            <input type="text" id="likes" placeholder="8420" autocomplete="off" />
+          </div>
+          <div>
+            <label class="f" for="created">등록일</label>
+            <input type="text" id="created" placeholder="3일 전" autocomplete="off" />
+          </div>
+        </div>
+
+        <div class="row fld">
+          <div>
+            <label class="f" for="followers">제작자 팔로워</label>
+            <input type="text" id="followers" placeholder="선택" autocomplete="off" />
+          </div>
+          <div>
+            <label class="f" for="rank">목록 순위</label>
+            <input type="text" id="rank" placeholder="선택 · 처음 1 입력 시 자동 증가" autocomplete="off" />
+          </div>
+        </div>
+
+        <div id="entry-note"></div>
+
+        <div class="btnrow" style="margin-top:12px">
+          <button id="btn-add">저장하고 다음 (Enter)</button>
+          <button class="ghost" id="btn-reset">입력 비우기</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===================== 오른쪽: 목록 ===================== -->
+    <div>
+      <div class="panel">
+        <h2>수집 목록 <span id="count-badge" style="color:var(--dim);font-weight:600"></span></h2>
+        <p class="sub">행을 클릭하면 입력란으로 불러와 수정할 수 있습니다.</p>
+        <div class="tblwrap">
+          <table>
+            <thead><tr>
+              <th>#</th><th>제목</th><th>태그</th><th class="num">대화</th>
+              <th class="num">좋아요</th><th>등록</th><th>출처</th><th></th>
+            </tr></thead>
+            <tbody id="rows"></tbody>
+          </table>
+        </div>
+
+        <div class="btnrow" style="margin-top:13px">
+          <button id="btn-analyze">분석기로 보내기</button>
+          <button class="ghost" id="btn-csv">CSV 저장</button>
+          <button class="ghost" id="btn-json">JSON 저장</button>
+          <button class="ghost" id="btn-import">불러오기</button>
+          <button class="ghost" id="btn-wipe">전체 삭제</button>
+        </div>
+        <input type="file" id="importfile" accept=".csv,.json" style="display:none" />
+      </div>
+
+      <div class="panel">
+        <h2>미등록 태그</h2>
+        <p class="sub">사전에 없어 어떤 축에도 분류되지 않는 태그입니다.
+          자주 나온다면 <code>zeta-analyzer.js</code>의 TAXONOMY에 추가하세요.</p>
+        <div id="unmapped" class="cover"></div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    수집 → <code>분석기로 보내기</code> → 분석기가 자동으로 읽습니다.
+    브라우저가 페이지 간 저장소를 공유하지 않으면 CSV로 저장한 뒤 분석기에서 불러오세요.
+  </footer>
+</div>
+
+<script src="zeta-analyzer.js"></script>
+<script>
+"use strict";
+/* =============================================================================
+   수집기 로직
+   ============================================================================= */
+var KEY = 'zeta.collector.v1';
+var HANDOFF = 'zeta.handoff.works';
+
+var state = { works: [], source: 'new', editingId: null, tags: [] };
+var $ = function (s) { return document.querySelector(s); };
+
+/* ---------- 저장 ---------- */
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify({ works: state.works, source: state.source })); }
+  catch (e) { toast('저장 공간이 부족합니다'); }
+}
+function load() {
+  try {
+    var raw = localStorage.getItem(KEY);
+    if (!raw) return;
+    var d = JSON.parse(raw);
+    state.works = d.works || [];
+    state.source = d.source || 'new';
+    $('#source').value = state.source;
+  } catch (e) { /* 손상된 데이터는 무시하고 새로 시작 */ }
+}
+
+function toast(msg) {
+  var el = document.createElement('div');
+  el.className = 'toast'; el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(function () { el.remove(); }, 1600);
+}
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+/* ---------- 태그 사전 (자동완성) ---------- */
+var TAG_INDEX = (function () {
+  var out = [];
+  Object.keys(ZetaAnalyzer.TAXONOMY).forEach(function (axis) {
+    var values = ZetaAnalyzer.TAXONOMY[axis].values;
+    Object.keys(values).forEach(function (value) {
+      values[value].forEach(function (kw) {
+        out.push({ kw: kw, axis: axis, axisLabel: ZetaAnalyzer.TAXONOMY[axis].label, value: value });
+      });
+    });
+  });
+  return out;
+})();
+
+/** 이미 쓴 적 있는 태그도 후보에 넣는다 */
+function usedTags() {
+  var seen = {};
+  state.works.forEach(function (w) {
+    (w.tags || []).forEach(function (t) { seen[t] = (seen[t] || 0) + 1; });
+  });
+  return seen;
+}
+
+/* ---------- 축 커버리지 ---------- */
+function renderCoverage() {
+  var axes = ZetaAnalyzer.classify({ title: '', tags: state.tags }).axes;
+  $('#cover').innerHTML = ZetaAnalyzer.AXIS_KEYS.map(function (a) {
+    var on = axes[a] && axes[a].length;
+    return '<span class="cv ' + (on ? 'on' : '') + '">' +
+      esc(ZetaAnalyzer.TAXONOMY[a].label) + (on ? ' ' + esc(axes[a].join('/')) : '') + '</span>';
+  }).join('');
+
+  // 조합 분석은 최소 두 축이 있어야 의미가 있다
+  var filled = ZetaAnalyzer.AXIS_KEYS.filter(function (a) { return axes[a] && axes[a].length; }).length;
+  var note = $('#entry-note');
+  if (!state.tags.length) { note.innerHTML = ''; return; }
+  if (filled === 0) {
+    note.innerHTML = '<div class="note bad">태그가 어떤 축에도 분류되지 않습니다. ' +
+      '이대로 저장하면 이 작품은 <b>조합 분석에서 제외</b>됩니다.</div>';
+  } else if (filled === 1) {
+    note.innerHTML = '<div class="note warn">축 1개만 채워졌습니다. ' +
+      '조합 분석에 쓰이려면 최소 2개 축(예: 장르 + 정서)이 필요합니다.</div>';
+  } else {
+    note.innerHTML = '<div class="note ok">' + filled + '개 축 분류됨 — 조합 분석에 사용됩니다.</div>';
+  }
+}
+
+/* ---------- 태그 입력 ---------- */
+var acIndex = -1, acItems = [];
+
+function renderTags() {
+  var box = $('#taginput');
+  var input = $('#tagin');
+  Array.prototype.slice.call(box.querySelectorAll('.tg')).forEach(function (n) { n.remove(); });
+
+  state.tags.forEach(function (t, i) {
+    var mapped = ZetaAnalyzer.classify({ title: '', tags: [t] });
+    var isMapped = ZetaAnalyzer.AXIS_KEYS.some(function (a) { return mapped.axes[a].length; });
+    var el = document.createElement('span');
+    el.className = 'tg' + (isMapped ? '' : ' unmapped');
+    el.innerHTML = esc(t) + '<b data-i="' + i + '">×</b>';
+    box.insertBefore(el, input);
+  });
+  renderCoverage();
+}
+
+function addTag(raw) {
+  String(raw).split(',').forEach(function (part) {
+    var t = part.trim().replace(/^#/, '');
+    if (t && state.tags.indexOf(t) < 0) state.tags.push(t);
+  });
+  renderTags();
+}
+
+function renderAC(q) {
+  var list = $('#aclist');
+  if (!q) { list.innerHTML = ''; acItems = []; acIndex = -1; return; }
+
+  var ql = q.toLowerCase();
+  var used = usedTags();
+  var seen = {};
+  var hits = [];
+
+  TAG_INDEX.forEach(function (e) {
+    if (e.kw.indexOf(ql) !== 0 || seen[e.kw]) return;
+    seen[e.kw] = true;
+    hits.push({ kw: e.kw, meta: e.axisLabel + ' · ' + e.value });
+  });
+  Object.keys(used).forEach(function (t) {
+    if (t.toLowerCase().indexOf(ql) !== 0 || seen[t]) return;
+    seen[t] = true;
+    hits.push({ kw: t, meta: '이전 사용 ' + used[t] + '회' });
+  });
+
+  acItems = hits.slice(0, 8);
+  acIndex = acItems.length ? 0 : -1;
+  list.innerHTML = acItems.length
+    ? '<div class="aclist">' + acItems.map(function (h, i) {
+        return '<div class="acitem ' + (i === acIndex ? 'on' : '') + '" data-i="' + i + '">' +
+          '<span>' + esc(h.kw) + '</span><span class="ax">' + esc(h.meta) + '</span></div>';
+      }).join('') + '</div>'
+    : '';
+}
+
+/* ---------- 폼 ---------- */
+function readForm() {
+  var title = $('#title').value.trim();
+  if (!title && !state.tags.length) return null;
+
+  return {
+    id: state.editingId || ('w' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)),
+    title: title || '(무제)',
+    tags: state.tags.slice(),
+    chats: ZetaAnalyzer.parseCount($('#chats').value),
+    likes: ZetaAnalyzer.parseCount($('#likes').value),
+    createdAt: ZetaAnalyzer.parseRelativeDate($('#created').value) || '',
+    creatorFollowers: ZetaAnalyzer.parseCount($('#followers').value),
+    rank: $('#rank').value ? Number($('#rank').value) : null,
+    source: $('#source').value
+  };
+}
+
+function clearForm(keepRank) {
+  state.editingId = null;
+  state.tags = [];
+  ['title', 'chats', 'likes', 'created', 'followers'].forEach(function (id) { $('#' + id).value = ''; });
+  if (!keepRank) $('#rank').value = '';
+  renderTags();
+  $('#title').focus();
+}
+
+function addWork() {
+  var w = readForm();
+  if (!w) { toast('제목이나 태그를 입력해 주세요'); $('#title').focus(); return; }
+
+  // 중복 확인 — 같은 제목이 이미 있으면 알린다
+  var dupe = state.works.filter(function (x) {
+    return x.id !== w.id && x.title === w.title;
+  }).length;
+
+  if (state.editingId) {
+    state.works = state.works.map(function (x) { return x.id === w.id ? w : x; });
+    toast('수정했습니다');
+  } else {
+    state.works.push(w);
+    toast(dupe ? '저장했습니다 (같은 제목이 이미 있습니다)' : '저장 · 총 ' + state.works.length + '건');
+  }
+
+  // 순위는 자동 증가시켜 다음 입력을 준비한다
+  var nextRank = w.rank != null ? w.rank + 1 : null;
+  save(); render();
+  clearForm(true);
+  $('#rank').value = nextRank != null ? nextRank : '';
+}
+
+function editWork(id) {
+  var w = state.works.filter(function (x) { return x.id === id; })[0];
+  if (!w) return;
+  state.editingId = id;
+  state.tags = (w.tags || []).slice();
+  $('#title').value = w.title === '(무제)' ? '' : w.title;
+  $('#chats').value = w.chats || '';
+  $('#likes').value = w.likes || '';
+  $('#created').value = w.createdAt || '';
+  $('#followers').value = w.creatorFollowers || '';
+  $('#rank').value = w.rank != null ? w.rank : '';
+  renderTags();
+  $('#title').focus();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+/* ---------- 렌더 ---------- */
+function render() {
+  renderStats();
+  renderRows();
+  renderUnmapped();
+  renderSourceNote();
+}
+
+function renderStats() {
+  var n = state.works.length;
+  var mix = {};
+  state.works.forEach(function (w) { mix[w.source] = (mix[w.source] || 0) + 1; });
+
+  // 조합 분석에 실제로 쓰일 수 있는 작품 = 축 2개 이상
+  var usable = state.works.filter(function (w) {
+    var ax = ZetaAnalyzer.classify({ title: w.title, tags: w.tags }).axes;
+    return ZetaAnalyzer.AXIS_KEYS.filter(function (a) { return ax[a].length; }).length >= 2;
+  }).length;
+
+  $('#stats').innerHTML =
+    st('수집', n + '건') +
+    st('분석 가능', usable + '건') +
+    st('최신순', (mix['new'] || 0) + '건') +
+    st('인기순', (mix.popular || 0) + '건');
+
+  $('#count-badge').textContent = n ? '· ' + n + '건' : '';
+
+  var pct = Math.min(100, n / 150 * 100);
+  var fill = $('#meter-fill');
+  fill.style.width = pct + '%';
+  fill.className = n >= 150 ? 'ok' : '';
+
+  renderAdequacy(n, usable, mix);
+}
+function st(k, v) { return '<div class="st"><div class="k">' + k + '</div><div class="v">' + v + '</div></div>'; }
+
+/** 표본이 결론을 낼 만큼 모였는지 알려준다 */
+function renderAdequacy(n, usable, mix) {
+  var el = $('#adequacy');
+  if (n === 0) {
+    el.innerHTML = '<div class="note info">아직 수집 전입니다. ' +
+      '<b>최신순 탭에서 100건 이상</b> 모으면 편향 없는 분석이 가능합니다.</div>';
+    return;
+  }
+  var msgs = [];
+  if (n < 60) {
+    msgs.push('<div class="note warn">' + n + '건 — 조합 단위 추천을 내기엔 부족합니다. ' +
+      '<b>최소 60건</b>, 가능하면 150건을 목표로 하세요.</div>');
+  } else if (n < 150) {
+    msgs.push('<div class="note info">' + n + '건 — 축 단위 분석은 가능합니다. ' +
+      '조합(2·3축) 추천까지 신뢰하려면 <b>150건</b> 정도가 필요합니다.</div>');
+  } else {
+    msgs.push('<div class="note ok">' + n + '건 — 조합 분석까지 충분한 표본입니다.</div>');
+  }
+  if (usable < n * 0.6) {
+    msgs.push('<div class="note warn">축 2개 이상 분류된 작품이 ' + usable + '건뿐입니다. ' +
+      '태그를 더 꼼꼼히 넣거나 사전을 보강해야 조합 분석이 제대로 돌아갑니다.</div>');
+  }
+  var pop = mix.popular || 0, nw = mix['new'] || 0;
+  if (pop > 0 && nw === 0) {
+    msgs.push('<div class="note bad"><b>인기순에서만 수집했습니다.</b> ' +
+      '실패한 작품이 표본에 없어 어떤 보정으로도 완전히 되돌릴 수 없습니다. ' +
+      '최신순 탭에서 100건만 더 모으면 추정 품질이 크게 올라갑니다.</div>');
+  }
+  el.innerHTML = msgs.join('');
+}
+
+function renderSourceNote() {
+  var v = $('#source').value;
+  var notes = {
+    'new': '<div class="note ok"><b>최신순은 성과와 무관하게 노출됩니다.</b> ' +
+           '망한 작품도 표본에 들어오므로 생존편향이 없습니다. 분석기에서 <code>census</code> 로 두세요.</div>',
+    'popular': '<div class="note warn"><b>인기순은 이미 성공한 작품만 보여줍니다.</b> ' +
+           '실패작이 보이지 않아 수요/공급 비율이 전반적으로 부풀려집니다. ' +
+           '분석기에서 반드시 <code>ranked</code> 로 두세요.</div>',
+    'recommended': '<div class="note warn"><b>추천 피드는 알고리즘이 고른 목록입니다.</b> ' +
+           '대화수가 작품의 매력이 아니라 노출량을 반영할 수 있습니다.</div>',
+    'search': '<div class="note warn"><b>검색 결과는 키워드에 치우칩니다.</b> ' +
+           '특정 태그를 검색해 모으면 그 태그의 공급 비중이 실제보다 커 보입니다.</div>'
+  };
+  $('#source-note').innerHTML = notes[v] || '';
+}
+
+function renderRows() {
+  var tb = $('#rows');
+  if (!state.works.length) {
+    tb.innerHTML = '<tr><td colspan="8" class="empty">아직 수집한 작품이 없습니다.</td></tr>';
+    return;
+  }
+  tb.innerHTML = state.works.map(function (w, i) {
+    return '<tr data-id="' + w.id + '">' +
+      '<td class="num">' + (i + 1) + '</td>' +
+      '<td class="t">' + esc(w.title) + '</td>' +
+      '<td class="t">' + esc((w.tags || []).join(', ')) + '</td>' +
+      '<td class="num">' + (w.chats || 0).toLocaleString() + '</td>' +
+      '<td class="num">' + (w.likes || 0).toLocaleString() + '</td>' +
+      '<td>' + esc(w.createdAt || '—') + '</td>' +
+      '<td><span class="src ' + esc(w.source) + '">' + srcLabel(w.source) + '</span></td>' +
+      '<td><span class="del" data-del="' + w.id + '">×</span></td>' +
+    '</tr>';
+  }).join('');
+}
+function srcLabel(s) {
+  return { 'new': '최신', popular: '인기', recommended: '추천', search: '검색' }[s] || '기타';
+}
+
+function renderUnmapped() {
+  var counts = {};
+  state.works.forEach(function (w) {
+    (w.tags || []).forEach(function (t) {
+      var c = ZetaAnalyzer.classify({ title: '', tags: [t] });
+      var mapped = ZetaAnalyzer.AXIS_KEYS.some(function (a) { return c.axes[a].length; });
+      if (!mapped) counts[t] = (counts[t] || 0) + 1;
+    });
+  });
+  var list = Object.keys(counts).sort(function (a, b) { return counts[b] - counts[a]; });
+  $('#unmapped').innerHTML = list.length
+    ? list.map(function (t) { return '<span class="cv">' + esc(t) + ' ' + counts[t] + '</span>'; }).join('')
+    : '<span class="cv">모든 태그가 분류되었습니다</span>';
+}
+
+/* ---------- 내보내기 ---------- */
+function toCSV() {
+  var head = 'id,title,tags,createdAt,chats,likes,creatorFollowers,source,rank';
+  var esq = function (v) {
+    var s = String(v == null ? '' : v);
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  };
+  var rows = state.works.map(function (w) {
+    return [w.id, esq(w.title), esq((w.tags || []).join('|')), w.createdAt,
+            w.chats, w.likes, w.creatorFollowers, w.source,
+            w.rank == null ? '' : w.rank].join(',');
+  });
+  return head + '\n' + rows.join('\n') + '\n';
+}
+
+function download(content, filename, type) {
+  var blob = new Blob([content], { type: type + ';charset=utf-8' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(function () { URL.revokeObjectURL(url); }, 500);
+}
+
+/* ---------- 이벤트 ---------- */
+$('#source').addEventListener('change', function () {
+  state.source = $('#source').value;
+  save(); renderSourceNote();
+});
+
+// 태그 입력
+var tagin = $('#tagin');
+tagin.addEventListener('focus', function () { $('#taginput').classList.add('focus'); });
+tagin.addEventListener('blur', function () {
+  $('#taginput').classList.remove('focus');
+  setTimeout(function () { $('#aclist').innerHTML = ''; }, 150);
+});
+tagin.addEventListener('input', function () { renderAC(tagin.value.trim()); });
+
+tagin.addEventListener('keydown', function (e) {
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    if (!acItems.length) return;
+    e.preventDefault();
+    acIndex = (acIndex + (e.key === 'ArrowDown' ? 1 : -1) + acItems.length) % acItems.length;
+    renderACHighlight();
+    return;
+  }
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    e.stopPropagation();
+    if (acIndex >= 0 && acItems[acIndex] && tagin.value.trim()) {
+      addTag(acItems[acIndex].kw);
+    } else if (tagin.value.trim()) {
+      addTag(tagin.value);
+    }
+    tagin.value = ''; renderAC('');
+    return;
+  }
+  if (e.key === 'Backspace' && !tagin.value && state.tags.length) {
+    state.tags.pop(); renderTags();
+  }
+  if (e.key === 'Escape') { renderAC(''); }
+});
+
+function renderACHighlight() {
+  Array.prototype.slice.call(document.querySelectorAll('.acitem')).forEach(function (n, i) {
+    n.classList.toggle('on', i === acIndex);
+  });
+}
+
+$('#aclist').addEventListener('mousedown', function (e) {
+  var item = e.target.closest('[data-i]');
+  if (!item) return;
+  e.preventDefault();
+  addTag(acItems[Number(item.dataset.i)].kw);
+  tagin.value = ''; renderAC(''); tagin.focus();
+});
+
+$('#taginput').addEventListener('click', function (e) {
+  var x = e.target.closest('b[data-i]');
+  if (x) { state.tags.splice(Number(x.dataset.i), 1); renderTags(); return; }
+  tagin.focus();
+});
+
+// Enter 로 저장 (태그 입력란 제외)
+['title', 'chats', 'likes', 'created', 'followers', 'rank'].forEach(function (id) {
+  $('#' + id).addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); addWork(); }
+  });
+});
+
+$('#btn-add').addEventListener('click', addWork);
+$('#btn-reset').addEventListener('click', function () { clearForm(true); });
+
+// 붙여넣기 파싱
+function applyPaste() {
+  var text = $('#paste').value;
+  if (!text.trim()) { toast('붙여넣을 내용이 없습니다'); return; }
+  var p = ZetaAnalyzer.parsePasted(text);
+  if (!p) { toast('인식하지 못했습니다'); return; }
+
+  if (p.title) $('#title').value = p.title;
+  if (p.chats) $('#chats').value = p.chats;
+  if (p.likes) $('#likes').value = p.likes;
+  if (p.createdAt) $('#created').value = p.createdAt;
+  if (p.tags.length) { state.tags = []; addTag(p.tags.join(',')); }
+
+  renderTags();
+  toast('제목·태그 ' + p.tags.length + '개·숫자를 채웠습니다');
+  $('#title').focus();
+}
+$('#btn-parse').addEventListener('click', applyPaste);
+$('#btn-clear-paste').addEventListener('click', function () { $('#paste').value = ''; });
+$('#paste').addEventListener('keydown', function (e) {
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); applyPaste(); }
+});
+
+// 목록 조작
+$('#rows').addEventListener('click', function (e) {
+  var del = e.target.closest('[data-del]');
+  if (del) {
+    state.works = state.works.filter(function (w) { return w.id !== del.dataset.del; });
+    save(); render(); toast('삭제했습니다');
+    return;
+  }
+  var tr = e.target.closest('tr[data-id]');
+  if (tr) editWork(tr.dataset.id);
+});
+
+// 내보내기
+$('#btn-csv').addEventListener('click', function () {
+  if (!state.works.length) { toast('수집한 작품이 없습니다'); return; }
+  download(toCSV(), 'zeta-works-' + new Date().toISOString().slice(0, 10) + '.csv', 'text/csv');
+});
+$('#btn-json').addEventListener('click', function () {
+  if (!state.works.length) { toast('수집한 작품이 없습니다'); return; }
+  download(JSON.stringify(state.works, null, 2), 'zeta-works.json', 'application/json');
+});
+
+$('#btn-analyze').addEventListener('click', function () {
+  if (!state.works.length) { toast('수집한 작품이 없습니다'); return; }
+  try {
+    localStorage.setItem(HANDOFF, JSON.stringify(state.works));
+    location.href = 'index.html?from=collector';
+  } catch (e) {
+    toast('저장소 사용이 막혀 있습니다. CSV로 저장해 주세요.');
+  }
+});
+
+$('#btn-import').addEventListener('click', function () { $('#importfile').click(); });
+$('#importfile').addEventListener('change', function (e) {
+  var f = e.target.files && e.target.files[0];
+  if (!f) return;
+  var reader = new FileReader();
+  reader.onload = function (ev) {
+    try {
+      var data = /\.json$/i.test(f.name)
+        ? JSON.parse(ev.target.result)
+        : ZetaAnalyzer.parseCSV(ev.target.result);
+      if (!Array.isArray(data) || !data.length) throw new Error('작품이 없습니다');
+      data.forEach(function (w, i) {
+        if (!w.id) w.id = 'imp' + Date.now().toString(36) + i;
+      });
+      state.works = state.works.concat(data);
+      save(); render();
+      toast(data.length + '건을 불러왔습니다');
+    } catch (err) { toast('불러오지 못했습니다: ' + err.message); }
+  };
+  reader.readAsText(f, 'utf-8');
+  e.target.value = '';
+});
+
+$('#btn-wipe').addEventListener('click', function () {
+  if (!state.works.length) return;
+  if (!confirm('수집한 ' + state.works.length + '건을 모두 삭제할까요? 되돌릴 수 없습니다.')) return;
+  state.works = []; save(); render(); toast('전체 삭제했습니다');
+});
+
+/* ---------- 시작 ---------- */
+load();
+render();
+renderTags();
+$('#title').focus();
+</script>
+</body>
+</html>

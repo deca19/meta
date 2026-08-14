@@ -634,6 +634,102 @@ ok('무태그 작품은 경고로 보고됨', noTags.warnings.some(function (w) 
 }));
 
 /* ---------------------------------------------------------------------------
+ * 12-b. 수집 현장용 파서
+ * ------------------------------------------------------------------------- */
+section('12-b. 숫자 · 날짜 파서');
+
+ok('만 단위', Z.parseCount('12.3만') === 123000, String(Z.parseCount('12.3만')));
+ok('천 단위', Z.parseCount('3천') === 3000);
+ok('억 단위', Z.parseCount('1.5억') === 150000000);
+ok('K 단위', Z.parseCount('12.3K') === 12300);
+ok('M 단위', Z.parseCount('1.2M') === 1200000);
+ok('쉼표 제거', Z.parseCount('1,234,567') === 1234567);
+ok('공백 포함', Z.parseCount(' 8 420 ') === 8420);
+ok('숫자 그대로', Z.parseCount(1500) === 1500);
+ok('접두 텍스트 무시', Z.parseCount('대화 12.3만') === 123000);
+ok('빈 값은 0', Z.parseCount('') === 0 && Z.parseCount(null) === 0);
+ok('문자만 있으면 0', Z.parseCount('없음') === 0);
+ok('음수는 0으로', Z.parseCount('-50') === 0);
+
+var NOWD = Date.parse('2026-08-09T00:00:00Z');
+ok('N일 전', Z.parseRelativeDate('3일 전', NOWD) === '2026-08-06', Z.parseRelativeDate('3일 전', NOWD));
+ok('N주 전', Z.parseRelativeDate('2주 전', NOWD) === '2026-07-26');
+ok('N개월 전', Z.parseRelativeDate('3개월 전', NOWD) === '2026-05-11');
+ok('N년 전', Z.parseRelativeDate('1년 전', NOWD) === '2025-08-09');
+ok('오늘', Z.parseRelativeDate('오늘', NOWD) === '2026-08-09');
+ok('어제', Z.parseRelativeDate('어제', NOWD) === '2026-08-08');
+ok('방금', Z.parseRelativeDate('방금 전', NOWD) === '2026-08-09');
+ok('절대 날짜', Z.parseRelativeDate('2026-05-01', NOWD) === '2026-05-01');
+ok('점 구분 날짜', Z.parseRelativeDate('2026.05.01', NOWD) === '2026-05-01');
+ok('인식 불가는 null', Z.parseRelativeDate('언젠가', NOWD) === null);
+ok('빈 값은 null', Z.parseRelativeDate('', NOWD) === null);
+
+section('12-c. 붙여넣기 파서');
+
+var pasted = Z.parsePasted(
+  '차가운 팀장님\n#오피스 #상사 #집착\n대화 12.3만 · 좋아요 8,420\n3일 전', NOWD);
+ok('제목 추출', pasted.title === '차가운 팀장님', pasted.title);
+ok('해시태그 추출', pasted.tags.join(',') === '오피스,상사,집착', pasted.tags.join(','));
+ok('가장 큰 수를 대화수로', pasted.chats === 123000, String(pasted.chats));
+ok('두 번째 수를 좋아요로', pasted.likes === 8420, String(pasted.likes));
+ok('상대 날짜 변환', pasted.createdAt === '2026-08-06', pasted.createdAt);
+
+var noTag = Z.parsePasted('평범한 제목\n로맨스, 현대, 달달\n5000', NOWD);
+ok('해시태그 없으면 쉼표 줄을 태그로', noTag.tags.length === 3, JSON.stringify(noTag.tags));
+ok('제목은 태그 줄이 아님', noTag.title === '평범한 제목', noTag.title);
+
+ok('빈 입력은 null', Z.parsePasted('') === null);
+ok('파싱 결과가 분석 가능', (function () {
+  var w = Z.parsePasted('테스트\n#오피스 #집착\n1000\n2일 전', NOWD);
+  return Z.analyze([{ title: w.title, tags: w.tags, chats: w.chats,
+                      likes: w.likes, createdAt: w.createdAt }], { now: NOW }).meta.count === 1;
+})());
+
+section('12-d. 표본 출처 검사');
+
+function tagged(source, n) {
+  var out = [];
+  for (var i = 0; i < n; i++) {
+    out.push({ id: source + i, title: 't' + i, tags: ['오피스', '집착'],
+               chats: 1000 + i * 10, likes: 100, createdAt: '2026-05-01', source: source });
+  }
+  return out;
+}
+
+var popOnly = Z.analyze(tagged('popular', 80), { now: NOW });
+ok('출처가 meta 에 집계됨', popOnly.meta.sourceMix.popular === 80);
+ok('인기순 위주인데 census 면 경고', popOnly.warnings.some(function (w) {
+  return w.indexOf('인기순 목록에서 수집') >= 0;
+}));
+ok('최신순 표본 0이면 별도 경고', popOnly.warnings.some(function (w) {
+  return w.indexOf('최신순 목록에서 수집한 표본이 없습니다') >= 0;
+}));
+
+var popRanked = Z.analyze(tagged('popular', 80), { now: NOW, sampling: 'ranked' });
+ok('ranked 로 두면 불일치 경고 사라짐', !popRanked.warnings.some(function (w) {
+  return w.indexOf('census 로 설정') >= 0;
+}));
+
+var newOnly = Z.analyze(tagged('new', 80), { now: NOW });
+ok('최신순만이면 census 경고 없음', !newOnly.warnings.some(function (w) {
+  return w.indexOf('인기순 목록에서 수집') >= 0;
+}));
+ok('최신순인데 ranked 면 되돌리라고 경고',
+   Z.analyze(tagged('new', 80), { now: NOW, sampling: 'ranked' }).warnings.some(function (w) {
+     return w.indexOf('생존편향이 없습니다') >= 0;
+   }));
+
+ok('출처 없는 데이터는 출처 경고 없음', !Z.analyze(works, { now: NOW }).warnings.some(function (w) {
+  return w.indexOf('수집됐는데') >= 0;
+}));
+
+ok('CSV 의 source · rank 컬럼을 읽음', (function () {
+  var p = Z.parseCSV('id,title,tags,createdAt,chats,likes,creatorFollowers,source,rank\n' +
+                     'a,제목,오피스|집착,2026-05-01,12.3만,8420,300,popular,7\n');
+  return p[0].source === 'popular' && p[0].rank === 7 && p[0].chats === 123000;
+})(), 'CSV 에서 만 단위까지 변환되어야 한다');
+
+/* ---------------------------------------------------------------------------
  * 13. CSV 파서
  * ------------------------------------------------------------------------- */
 section('13. CSV 파서');

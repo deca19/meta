@@ -276,6 +276,7 @@ code { background:var(--panel2); padding:1.5px 5px; border-radius:4px; font-size
 
   <div class="btnrow">
     <button id="btn-run">다시 분석</button>
+    <button class="ghost" onclick="location.href='collect.html'">작품 수집기 열기</button>
     <button class="ghost" id="btn-sample">샘플 데이터 재생성</button>
     <button class="ghost" id="btn-csv">CSV 서식 내려받기</button>
     <button class="ghost" id="btn-json">분석 결과 JSON</button>
@@ -669,8 +670,25 @@ function download(content, filename, type) {
   setTimeout(function () { URL.revokeObjectURL(url); }, 500);
 }
 
-/* ---------- 시작 ---------- */
-run();
+/* ---------- 시작 ----------
+   수집기에서 넘어온 데이터가 있으면 샘플 대신 그것을 쓴다. */
+(function boot() {
+  try {
+    var raw = localStorage.getItem('zeta.handoff.works');
+    if (raw) {
+      var data = JSON.parse(raw);
+      if (Array.isArray(data) && data.length) {
+        state.works = data;
+        state.sourceLabel = '수집기 (' + data.length + '건)';
+        // 인기순 위주로 모았으면 생존편향 보정을 기본값으로 켠다
+        var pop = data.filter(function (w) { return w.source === 'popular'; }).length;
+        var known = data.filter(function (w) { return w.source && w.source !== 'unknown'; }).length;
+        if (known && pop / known > 0.7) $('#sampling').value = 'ranked';
+      }
+    }
+  } catch (e) { /* 저장소 접근 불가 — 샘플로 진행 */ }
+  run();
+})();
 </script>
 </body>
 </html>
